@@ -1,4 +1,5 @@
 
+require(pastecs)
 
 
 #Function to align site x species matrix with lidar data
@@ -183,7 +184,7 @@ fitted.vals <- function(model){
 	names(cf) <- c("a","b")
 	mod_expr <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
 
-	predx <- 0:100
+	predx <- seq((0), 100, 0.1)
 	#Calculate expressions for derivatives of the model
 	x_p <- D(mod_expr, 'predx')
 	x_pp <- D(x_p, 'predx')
@@ -203,6 +204,36 @@ fitted.vals <- function(model){
 
 ###################################################################################
 ###################################################################################
+
+
+	
+#Function to find roots and turning points
+root.finder <- function(fitted_vals){
+	#fitted_vals = output from fitted.vals
+#	#y = vector of y-axis values to scan
+#	#x = vector of x-axis values at which y-axis values are evaluated
+	
+	if (!require(pastecs)) install.packages("pastecs") && require(pastecs)   ## Check if required packages are installed
+	 
+	x <- fitted_vals$agb
+	y <- round(fitted_vals$d2,8)
+	
+	past <- NA
+	try(past <- turnpoints(y)$tp, silent = TRUE)
+	try(peak <- turnpoints(y)$firstispeak, silent = TRUE)
+	if(!is.na(past[1])){
+		first <- x[past]
+		}else{
+			first <- numeric()
+			peak <- NA
+			}
+		
+	return(list(tps = min(first), peak = peak))		
+	}
+
+###################################################################################
+###################################################################################
+
 
 
 

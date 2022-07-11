@@ -32,6 +32,8 @@ function(fitted_mod){
 			turnpoints[i, ] <- rep(NA, 2)		#No informative turning points
 			}else{
 				#Find turning points
+				fits <- fitted.vals(target)		#Estimate fitted values and derivatives
+				turns <- root.finder(y = d2.vals, x = predx, method = "pastecs")
 				
 				
 				}
@@ -49,31 +51,28 @@ function(fitted_mod){
 ####
 ###
 
-#Function to calculate predicted values and derivatives
-
-fitted.vals <- function(model){
-	#model = fitted model for which values should be predicted
-
-	cf <- as.list(coef(model$bestmod))
-	names(cf) <- c("a","b")
-	mod_expr <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
-
-	predx <- 0:100
-	#Calculate expressions for derivatives of the model
-	x_p <- D(mod_expr, 'predx')
-	x_pp <- D(x_p, 'predx')
-	x_ppp <- D(x_pp, 'predx')
-
-	#Predicted values for derivatives
-	obs <- with(cf, eval(mod_expr))
-	d1.vals <- with(cf, eval(x_p))
-	d2.vals <- with(cf, eval(x_pp))
-	d3.vals <- with(cf, eval(x_ppp))
 	
-	#Combine for output
-	out <- data.frame(agb = predx, obs = obs, d1 = d1.vals, d2 = d2.vals)
 	
-	return(out)
+#Function to find roots and turning points
+root.finder <- function(fitted_vals){
+	#fitted_vals = output from fitted.vals
+#	#y = vector of y-axis values to scan
+#	#x = vector of x-axis values at which y-axis values are evaluated
+	
+	if (!require(pastecs)) install.packages("pastecs") && require(pastecs)   ## Check if required packages are installed
+	 
+	x <- fitted_vals$agb
+	y <- round(fitted_vals$d2,8)
+	
+	past <- NA
+	try(past <- turnpoints(y)$tp, silent = TRUE)
+	try(peak <- turnpoints(y)$firstispeak, silent = TRUE)
+	if(!is.na(past[1])){
+		first <- x[past]
+		}else{
+			first <- numeric()
+			peak <- NA
+			}
+		
+	return(list(tps = min(first), peak = peak))		
 	}
-	
-	
