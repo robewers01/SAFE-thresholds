@@ -182,7 +182,7 @@ fitted.vals <- function(model, mod_coef){
 	names(cf) <- c("a","b")
 	mod_expr <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
 
-	predx <- seq((-150), 150, 0.1)
+	predx <- seq((-50), 150, 0.1)
 	#Calculate expressions for derivatives of the model
 	x_p <- D(mod_expr, 'predx')
 	x_pp <- D(x_p, 'predx')
@@ -213,18 +213,22 @@ root.finder <- function(fitted_vals){
 	 
 	x <- fitted_vals$fits$agb
 	y <- round(fitted_vals$fits$d2,8)
+	keep <- which(y != Inf & !is.na(y))
+	x <- x[keep]
+	y <- y[keep]
 	
 	past <- NA
 	try(past <- turnpoints(y)$tp, silent = TRUE)
 	try(peak <- turnpoints(y)$firstispeak, silent = TRUE)
 	if(!is.na(past[1])){
 		first <- x[past]
+		tps = min(first)
 		}else{
-			first <- numeric()
+			tps <- NA
 			peak <- NA
 			}
 		
-	return(list(tps = min(first), peak = peak, coefs = fitted_vals$coefs))		
+	return(list(tps = tps, peak = peak, coefs = fitted_vals$coefs))		
 	}
 
 ###################################################################################
@@ -236,26 +240,24 @@ extract.turns <- function(turns_estimate){
 	#turns_estimate = output from root.finder
 
 	obs.x.range <- as.numeric(c(turns_estimate$coefs[, 10:11]))
-	turnings <- turns$tps
+	turnings <- turns_estimate$tps
 	
 	#If no turning point was detected:
-	if(length(turnings) == 0 & as.numeric(turns_estimate$coefs$pval) < 0.05){			
+	if(is.na(turnings) & as.numeric(turns_estimate$coefs$pval) < 0.05){			
 		turnings <- 0	#Set turning points to be the min (because fitted model is significant)
 		}
 
 	#Check for turning points that fall outside range of valid AGB values
 	if(as.numeric(turns_estimate$coefs$slope) > 0){
-		if(turns_estimate$peak == FALSE) turnings <- 0		#Turning point returned has missed initial acceleration point
+		if(!is.na(turns_estimate$peak) & turns_estimate$peak == FALSE) turnings <- 0		#Turning point returned has missed initial acceleration point
 		}
 	if(as.numeric(turns_estimate$coefs$slope) < 0){ 
-		if(turns_estimate$peak == TRUE) turnings <- 0		#Turning point returned has missed initial deceleration point
+		if(!is.na(turns_estimate$peak) & turns_estimate$peak == TRUE) turnings <- 0		#Turning point returned has missed initial deceleration point
 		}
 
 	#Constrain to fit within valid range of agb values
 	if(turnings > 100) turnings <- 100
 	if(turnings < 0) turnings <- 0
-	
-
 
 	#Generate weights for turning point estimates
 	if(turnings >= min(obs.x.range) & turnings <= max(obs.x.range)) turn.weight <- 1
@@ -268,5 +270,33 @@ extract.turns <- function(turns_estimate){
 ###################################################################################
 ###################################################################################
 
+
+
+#Function to estimate turning points for fitted models
+turns <- function(fitted_mod){
+	#fitted_mod = output from fit.models
+
+	turnpoints <- matrix(NA, nrow = length(fitted_mod$models), ncol = 2)
+	for(i in 1:length(fitted_mod$models)){			#For each fitted model....
+		print(paste('getting turning points for model', i, 'of', length(fitted_mod$models)))
+		target = fitted_mod$models[[i]]
+		#Check if fitted model was significant or not
+		if(as.numeric(fitted_mod$coefs$pval[i]) < 0.05){	#If it was a significant model
+			#Find turning points
+			fits <- fitted.vals(target, mod_coef = fitted_mod$coefs[i , ])		#Estimate fitted values and derivatives
+			turnings <- root.finder(fitted_vals = fits)
+			turnsdat <- unlist(extract.turns(turns_estimate = turnings))
+			turnpoints[i ,] <- turnsdat
+			}
+		}
+	out <- data.frame(cbind(fitted_mod$coefs, turnpoints))
+	names(out)[(ncol(out)-1):ncol(out)] <- c('turn.point', 'range.weight')
+	out[ , c(3,6:8,10:16,18:19)] <- sapply(out[, c(3,6:8,10:16,18:19)], as.numeric)
+	
+	return(out)
+	}
+
+###################################################################################
+###################################################################################
 
 
