@@ -174,3 +174,35 @@ fit.models <- function(taxa_data, lidar, predictor, min.obs = 5){
 
 ###################################################################################
 ###################################################################################
+
+#Function to calculate predicted values and derivatives
+fitted.vals <- function(model){
+	#model = fitted model for which values should be predicted
+
+	cf <- as.list(coef(model$bestmod))
+	names(cf) <- c("a","b")
+	mod_expr <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
+
+	predx <- 0:100
+	#Calculate expressions for derivatives of the model
+	x_p <- D(mod_expr, 'predx')
+	x_pp <- D(x_p, 'predx')
+	x_ppp <- D(x_pp, 'predx')
+
+	#Predicted values for derivatives
+	obs <- with(cf, eval(mod_expr))
+	d1.vals <- with(cf, eval(x_p))
+	d2.vals <- with(cf, eval(x_pp))
+	d3.vals <- with(cf, eval(x_ppp))
+	
+	#Combine for output
+	out <- data.frame(agb = predx, obs = obs, d1 = d1.vals, d2 = d2.vals)
+	
+	return(out)
+	}
+
+###################################################################################
+###################################################################################
+
+
+
