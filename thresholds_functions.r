@@ -123,11 +123,8 @@ glm.extract <- function(glms_output, taxa_data, comm = comm, taxon, coefs = NA){
 	return(coefs)
 	}
 
-
 ###################################################################################
 ###################################################################################
-
-
 
 
 #Function to fit model-averaged binomial GLM and estimate turning points in predicted values
@@ -177,14 +174,15 @@ fit.models <- function(taxa_data, lidar, predictor, min.obs = 5){
 ###################################################################################
 
 #Function to calculate predicted values and derivatives
-fitted.vals <- function(model){
+fitted.vals <- function(model, mod_coef){
 	#model = fitted model for which values should be predicted
+	#mod_coef = summary model information (passed for follow-up functions)
 
 	cf <- as.list(coef(model$bestmod))
 	names(cf) <- c("a","b")
 	mod_expr <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
 
-	predx <- seq((0), 100, 0.1)
+	predx <- seq((-150), 150, 0.1)
 	#Calculate expressions for derivatives of the model
 	x_p <- D(mod_expr, 'predx')
 	x_pp <- D(x_p, 'predx')
@@ -199,7 +197,7 @@ fitted.vals <- function(model){
 	#Combine for output
 	out <- data.frame(agb = predx, obs = obs, d1 = d1.vals, d2 = d2.vals)
 	
-	return(out)
+	return(list(fits = out, coefs = mod_coef))
 	}
 
 ###################################################################################
@@ -207,16 +205,14 @@ fitted.vals <- function(model){
 
 
 	
-#Function to find roots and turning points
+#Function to find first turning point
 root.finder <- function(fitted_vals){
 	#fitted_vals = output from fitted.vals
-#	#y = vector of y-axis values to scan
-#	#x = vector of x-axis values at which y-axis values are evaluated
 	
 	if (!require(pastecs)) install.packages("pastecs") && require(pastecs)   ## Check if required packages are installed
 	 
-	x <- fitted_vals$agb
-	y <- round(fitted_vals$d2,8)
+	x <- fitted_vals$fits$agb
+	y <- round(fitted_vals$fits$d2,8)
 	
 	past <- NA
 	try(past <- turnpoints(y)$tp, silent = TRUE)
@@ -228,12 +224,49 @@ root.finder <- function(fitted_vals){
 			peak <- NA
 			}
 		
-	return(list(tps = min(first), peak = peak))		
+	return(list(tps = min(first), peak = peak, coefs = fitted_vals$coefs))		
 	}
 
 ###################################################################################
 ###################################################################################
 
+
+#Function to extract turning point data
+extract.turns <- function(turns_estimate){
+	#turns_estimate = output from root.finder
+
+	obs.x.range <- as.numeric(c(turns_estimate$coefs[, 10:11]))
+	turnings <- turns$tps
+	
+	#If no turning point was detected:
+	if(length(turnings) == 0 & as.numeric(turns_estimate$coefs$pval) < 0.05){			
+		turnings <- 0	#Set turning points to be the min (because fitted model is significant)
+		}
+
+	#Check for turning points that fall outside range of valid AGB values
+	if(as.numeric(turns_estimate$coefs$slope) > 0){
+		if(turns_estimate$peak == FALSE) turnings <- 0		#Turning point returned has missed initial acceleration point
+		}
+	if(as.numeric(turns_estimate$coefs$slope) < 0){ 
+		if(turns_estimate$peak == TRUE) turnings <- 0		#Turning point returned has missed initial deceleration point
+		}
+
+	#Constrain to fit within valid range of agb values
+	if(turnings > 100) turnings <- 100
+	if(turnings < 0) turnings <- 0
+	
+
+
+	#Generate weights for turning point estimates
+	if(turnings >= min(obs.x.range) & turnings <= max(obs.x.range)) turn.weight <- 1
+	if(turnings < min(obs.x.range)) turn.weight <- abs(1/(turnings-min(obs.x.range)))
+	if(turnings > max(obs.x.range)) turn.weight <- abs(1/(turnings-max(obs.x.range)))
+
+	return(list(turn.point = turnings, turn.weight = turn.weight))
+	}
+	
+###################################################################################
+###################################################################################
 
 
 

@@ -24,27 +24,18 @@ fitted_mod = fitted_thresh
 
 function(fitted_mod){
 
-	turnpoints <- matrix(NA, nrow = length(fitted_mod$models), ncol = 2)
+	turnpoints <- rep(NA, length(fitted_mod$models))
 	for(i in 1:length(fitted_mod$models)){			#For each fitted model....
 		target = fitted_mod$models[[i]]
 		#Check if fitted model was significant or not
-		if(as.numeric(fitted_mod$coef$pval[i]) > 0.05){
-			turnpoints[i, ] <- rep(NA, 2)		#No informative turning points
-			}else{
-				#Find turning points
-				fits <- fitted.vals(target)		#Estimate fitted values and derivatives
-				turns <- root.finder(y = d2.vals, x = predx, method = "pastecs")
-				
+		if(as.numeric(fitted_mod$coef$pval[i]) <- 0.05){	#If it was a significant model
+			#Find turning points
+			fits <- fitted.vals(target, mod_coef = fitted_mod$coefs[i , ])		#Estimate fitted values and derivatives
+			turns <- root.finder(fitted_vals = fits)
+			turnsdat <- extract.turns(turns)
 				
 				}
-		
-		
-		
 		}
-	
-	
-	
-	
 	}
 
 
@@ -52,27 +43,4 @@ function(fitted_mod){
 ###
 
 	
-	
-#Function to find roots and turning points
-root.finder <- function(fitted_vals){
-	#fitted_vals = output from fitted.vals
-#	#y = vector of y-axis values to scan
-#	#x = vector of x-axis values at which y-axis values are evaluated
-	
-	if (!require(pastecs)) install.packages("pastecs") && require(pastecs)   ## Check if required packages are installed
-	 
-	x <- fitted_vals$agb
-	y <- round(fitted_vals$d2,8)
-	
-	past <- NA
-	try(past <- turnpoints(y)$tp, silent = TRUE)
-	try(peak <- turnpoints(y)$firstispeak, silent = TRUE)
-	if(!is.na(past[1])){
-		first <- x[past]
-		}else{
-			first <- numeric()
-			peak <- NA
-			}
-		
-	return(list(tps = min(first), peak = peak))		
-	}
+
