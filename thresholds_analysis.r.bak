@@ -12,8 +12,6 @@
 	lidar.data <- readRDS("data/lidar_percent.rds")		#Lidar data for all sites in full dataset
 
 #Fit models and calculate summaries
-	thresh.data <- thresh.data[1:3]
-
 	fitted_mod <- fit.models(taxa_data = thresh.data, lidar = lidar.data, min.obs = 5,
 		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
 		

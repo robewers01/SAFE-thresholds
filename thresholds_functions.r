@@ -138,6 +138,7 @@ fit.models <- function(taxa_data, lidar, predictor, min.obs = 5){
 
 
 	coefs <- NA
+	models <- list()
 	for(d in 1:length(taxa_data)){		#For each dataset...
 		print(paste('OPENING DATASET', d, 'OUT OF', length(taxa_data)))
 		analysis_data <- taxa_data[[d]]
@@ -154,6 +155,7 @@ fit.models <- function(taxa_data, lidar, predictor, min.obs = 5){
 				glms <- fit.glm(comm = target, taxon_ind = ncol(target), predictor = predictor)		#Fit series of univariate glms and return best model
 				coefs <- glm.extract(glms_output = glms, taxa_data = analysis_data, comm = comm,
 					taxon = names(comm)[species], coefs = coefs)
+				models[[nrow(coefs)]] <- glms								#Record the model itself
 				rm(glms)
 				}
 			}
@@ -161,10 +163,13 @@ fit.models <- function(taxa_data, lidar, predictor, min.obs = 5){
 	
 	#Remove any models that weren't fully fitted or tested
 	if(!is.na(coefs)[1]){
-		coefs <- coefs[!is.na(coefs$pval), ]
+		toretain <- !is.na(coefs$pval)
+		coefs <- coefs[toretain, ]
+		models <- models[toretain]
 		}
+	names(models) <- paste(coefs$dataset, coefs$taxon, sep = "__")
 		
-	return(coefs)
+	return(list(coefs = coefs, models = models))
 	}
 
 ###################################################################################

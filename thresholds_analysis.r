@@ -14,8 +14,12 @@
 #Fit models and calculate summaries
 	fitted_mod <- fit.models(taxa_data = thresh.data, lidar = lidar.data, min.obs = 5,
 		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
+		saveRDS(fitted_mod, 'results/fitted_mod.rds')
 		
-		
+
+
+#Function to estimate turning points for fitted models
+	
 
 
 
