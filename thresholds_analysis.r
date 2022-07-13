@@ -12,8 +12,8 @@
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
 	
 #Fit models and calculate summaries
-#	fitted_thresh <- fit.models(taxa_data = thresh.data, lidar = lidar.data, min.obs = 5,
-#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
+#	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.obs = 5,
+#	predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
 #		saveRDS(fitted_mod, 'results/fitted_thresh.rds')
 #	turn_points <- turns(fitted_thresh)
 #		saveRDS(turn_points, 'results/turn_points.rds')
@@ -56,36 +56,5 @@
 
 
 
-#Function to fit models
-
-full_data = thresh.data
-lidar = lidar.data
-min.obs = 1
-predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000')
-
-
-
-
-	taxa_survey <- taxon.dataset(full_data)
-	for(i in 1:nrow(taxa_survey)){
-		print(paste('fitting models to taxon', i, 'of', nrow(taxa_survey), ':', rownames(taxa_survey)[i]))
-
-		#Get aligned dataset
-		comm_data <- align.data.multi(taxon = rownames(taxa_survey)[i], taxa_survey = taxa_survey, full_data = thresh.data,
-			lidar = lidar.data, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'),
-			min.obs = 1)
-		
-		#Decide if mixed effect model is needed
-		mixed <- FALSE
-		if(length(unique(comm_data$survey)) > 1)	mixed <- TRUE
-		
-		#Fit models
-		if(mixed){
-			model <- fit.glmer(comm = comm_data, predictor = predictor)
-			}else{
-				model <- fit.glm(comm = comm_data, predictor, taxon_ind = length(predictor) + 4)
-				}
-		
-		}
 
 

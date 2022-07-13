@@ -12,9 +12,9 @@
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
 	
 #Fit models and calculate summaries
-#	fitted_thresh <- fit.models(taxa_data = thresh.data, lidar = lidar.data, min.obs = 5,
-#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
-#		saveRDS(fitted_mod, 'results/fitted_thresh.rds')
+	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.obs = 5,
+	predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
+		saveRDS(fitted_mod, 'results/fitted_thresh.rds')
 #	turn_points <- turns(fitted_thresh)
 #		saveRDS(turn_points, 'results/turn_points.rds')
 
@@ -56,66 +56,47 @@
 
 
 
-#Function to fit models
-
-full_data = thresh.data
-lidar = lidar.data
-min.obs = 1
-predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000')
+d<- fit.models(full_data = thresh.data, lidar = lidar.data, min.obs = 5,
+	predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
 
 
-
+#Function to fit binomial GLM or GLMER as appropriate
+fit.models <- function(full_data, lidar, predictor, min.obs = 5){
+	#full_data = raw data to be analysed
+	#lidar = dataframe containing lidar estimates at point locations
+	#predictor = dependent variable; one of 'agb', 'tch'
+	#min.obs = minimum number of presences required to analyse taxa
 
 	taxa_survey <- taxon.dataset(full_data)
-	for(i in 1:nrow(taxa_survey)){
+	models <- list()
+
+	for(i in 2:nrow(taxa_survey)){
 		print(paste('fitting models to taxon', i, 'of', nrow(taxa_survey), ':', rownames(taxa_survey)[i]))
 
 		#Get aligned dataset
 		comm_data <- align.data.multi(taxon = rownames(taxa_survey)[i], taxa_survey = taxa_survey, full_data = thresh.data,
 			lidar = lidar.data, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'),
 			min.obs = 1)
-		
-		#Decide if mixed effect model is needed
-		mixed <- FALSE
-		if(length(unique(comm_data$survey)) > 1)	mixed <- TRUE
-		
-		
-		}
-
-
-
-comm = comm_data
-
-#Function to fit univariate generalised mixed effect models
-#Returns best model and name of the best univariate predictor
-fit.glmer <- function(comm, predictor)){
-	#comm = output from align.data.multi
-	#predictor = list of predictor variable(s) to be analysed
-
-	if (!require(lme4)) install.packages("lme4") && require(lme4)   ## Check if required packages are installed
-
-	responseInd <- length(predictor) + 4		#Index to taxon data
-	
-	#Fit GLMMs and extract AIC values
-	mod0 <- try(glmer(comm[,responseInd] ~ 1 + (1 + pred|comm$survey), family = binomial), FALSE)	#Fit null model
-	aic <- numeric()
-	for(scale in 1:length(predictor)){						#For each predictor...
-		assign('pred', comm[, which(names(comm) == predictor[scale])])
-		model <- try(glmer(comm[,responseInd] ~ pred + (1 + pred|comm$survey), family = binomial), FALSE)
-		assign(paste('mod', scale, sep = ""), model)
-		aic <- c(aic, AIC(model))
-		rm(model)
-		}
-	#Select best model
-	if(sum(diff(aic)) == 0){		#Where all models give same AIC or there's only a single model
-		best <- mod1		#Select model with smallest spatial scale
-		bestpred <- predictor[1]
-		}else{
-			best <- get(paste('mod', (which(aic == min(aic))), sep = ""))
-			bestpred <- predictor[which(aic == min(aic))]
-			}
 			
-	pval <- anova(best, mod0, test = 'Chi')$Pr[2]		#Likelihood ratio test
+		if(sum(comm_data[, (length(predictor)+4)]) >= min.obs){		#Check there are enough presences to model
+			#Decide if mixed effect model is needed
+			mixed <- FALSE
+			if(length(unique(comm_data$survey)) > 1)	mixed <- TRUE
+			
+			#Fit models
+			if(mixed){
+				model <- fit.glmer(comm = comm_data, predictor = predictor)
+				coefs <- glmer.extract(glmer_output = model, taxa_data = full_data, comm = comm_data,
+					taxon = rownames(taxa_survey)[i], coefs = coefs)
+				}else{
+					model <- fit.glm(comm = comm_data, predictor, taxon_ind = length(predictor) + 4)
+					coefs <- glm.extract(glms_output = model, taxa_data = full_data, comm = comm_data,
+						taxon = rownames(taxa_survey)[i], coefs = coefs)
+					}
+			models[[1]] <- model
+			names(models)[[i]] <- rownames(taxa_survey)[i]		
+			}
+		}
 	
-	return(list(bestmod = best, bestpred = bestpred, pval = pval))
+	return(list(coefs = coefs, models = models))
 	}
