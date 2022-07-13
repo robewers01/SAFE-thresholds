@@ -47,6 +47,35 @@ align.data <- function(comm.out, lidar, predictor, min.obs = 5){
 ###################################################################################
 
 
+#Function to extract and align data from multiple surveys per taxon
+align.data.multi <- function(taxon, taxa_survey, full_data, lidar, predictor, min.obs = 1){
+	#taxon = taxon name to extract
+	#taxa_survey = output from call to taxon.dataset
+	#full_data = full dataset containing all data to model
+	#lidar = dataframe containing lidar estimates at point locations
+	#predictor = dependent variable(s) for analyses
+	#min.obs = minimum number of occurrences needed to model the taxon
+
+
+	surveys <- names(taxa_survey)[which(!is.na(taxa_survey[i, ]))]	#Which surveys contain that taxon
+	data.out <- NULL
+	for(k in 1:length(surveys)){		#For each of those surveys
+		target <- full_data[[match(surveys[k], names(full_data))]]
+		comm <- align.data(target$comm.out, lidar, predictor, min.obs = min.obs)	#Add lidar data
+		taxonind <- match(rownames(taxa_survey)[i], names(comm))
+		if(!is.na(taxonind)){
+			commsub <- comm[ , c(1:(length(predictor)+ 3),taxonind)]
+			commsub$survey <- surveys[k]
+			data.out <- rbind(data.out, commsub)
+			}
+		}
+	 return(data.out)
+	 }
+
+###################################################################################
+###################################################################################
+
+		
 #Function to fit univariate glm models
 #Returns best model and name of the best univariate predictor
 fit.glm <- function(comm, predictor, taxon_ind = ncol(target)){
