@@ -41,14 +41,31 @@
 		
 
 #Turnpoints
-	#Number of taxa with significant turnpoints
-		sum(!is.na(turn_points$turn.point))
-		sum(!is.na(turn_points$turn.point)) / nrow(turn_points)
 	#Number of taxa instantly impacted
 		sum(turn_points$turn.point == 0, na.rm = TRUE)
 		sum(turn_points$turn.point == 0, na.rm = TRUE) / nrow(turn_points)
+	#Number of taxa with significant turnpoints
+		sum(!is.na(turn_points$turn.point))
+		sum(!is.na(turn_points$turn.point)) / nrow(turn_points)
+	#Number positive versus negative responses
+		sum(turn_points$slope[turn_points$pval < 0.05] < 0)		#are taxa responding negatively?
+		sum(turn_points$slope[turn_points$pval < 0.05] < 0)	 / sum(as.numeric(turn_points$pval) < 0.05)
+		
 
-	
 
+
+
+
+#Function to fit models
+
+	taxa_survey <- taxon.dataset(thresh.data)
+	for(i in 1:nrow(taxa_survey)){
+		print(paste('fitting models to taxon', i, 'of', nrow(taxa_survey), ':', rownames(taxa_survey)[i]))
+
+		surveys <- names(taxa_survey)[which(!is.na(taxa_survey[i, ]))]	#Which surveys contain that taxon
+		
+		
+		
+		}
 
 

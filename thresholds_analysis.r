@@ -47,8 +47,51 @@
 	#Number of taxa with significant turnpoints
 		sum(!is.na(turn_points$turn.point))
 		sum(!is.na(turn_points$turn.point)) / nrow(turn_points)
+	#Number positive versus negative responses
+		sum(turn_points$slope[turn_points$pval < 0.05] < 0)		#are taxa responding negatively?
+		sum(turn_points$slope[turn_points$pval < 0.05] < 0)	 / sum(as.numeric(turn_points$pval) < 0.05)
+		
 
-	
 
+
+
+
+#Function to fit models
+
+full_data = thresh.data
+lidar = lidar.data
+min.obs = 1
+predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000')
+
+#Function to extract and align data from multiple surveys per taxon
+align.data.multi <- function(full_data, lidar, predictor, min.obs = 1)
+	#full_data = full dataset containing all data to model
+	#lidar = dataframe containing lidar estimates at point locations
+	#predictor = dependent variable(s) for analyses
+	#min.obs = minimum number of occurrences needed to model the taxon
+
+
+		surveys <- names(taxa_survey)[which(!is.na(taxa_survey[i, ]))]	#Which surveys contain that taxon
+		data.out <- NULL
+		for(k in 1:length(surveys)){		#For each of those surveys
+			target <- full_data[[match(surveys[k], names(full_data))]]
+			comm <- align.data(target$comm.out, lidar, predictor, min.obs = min.obs)	#Add lidar data
+			taxonind <- match(rownames(taxa_survey)[i], names(comm))
+			if(!is.na(taxonind)){
+				commsub <- comm[ , c(1:(length(predictor)+ 3),taxonind)]
+				commsub$survey <- surveys[k]
+				data.out <- rbind(data.out, commsub)
+				}
+			}
+		
+
+
+
+	taxa_survey <- taxon.dataset(full_data)
+	for(i in 1:nrow(taxa_survey)){
+		print(paste('fitting models to taxon', i, 'of', nrow(taxa_survey), ':', rownames(taxa_survey)[i]))
+
+		
+		}
 
 

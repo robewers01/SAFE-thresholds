@@ -47,6 +47,35 @@ align.data <- function(comm.out, lidar, predictor, min.obs = 5){
 ###################################################################################
 
 
+#Function to extract and align data from multiple surveys per taxon
+align.data.multi <- function(taxon, taxa_survey, full_data, lidar, predictor, min.obs = 1){
+	#taxon = taxon name to extract
+	#taxa_survey = output from call to taxon.dataset
+	#full_data = full dataset containing all data to model
+	#lidar = dataframe containing lidar estimates at point locations
+	#predictor = dependent variable(s) for analyses
+	#min.obs = minimum number of occurrences needed to model the taxon
+
+
+	surveys <- names(taxa_survey)[which(!is.na(taxa_survey[i, ]))]	#Which surveys contain that taxon
+	data.out <- NULL
+	for(k in 1:length(surveys)){		#For each of those surveys
+		target <- full_data[[match(surveys[k], names(full_data))]]
+		comm <- align.data(target$comm.out, lidar, predictor, min.obs = min.obs)	#Add lidar data
+		taxonind <- match(rownames(taxa_survey)[i], names(comm))
+		if(!is.na(taxonind)){
+			commsub <- comm[ , c(1:(length(predictor)+ 3),taxonind)]
+			commsub$survey <- surveys[k]
+			data.out <- rbind(data.out, commsub)
+			}
+		}
+	 return(data.out)
+	 }
+
+###################################################################################
+###################################################################################
+
+		
 #Function to fit univariate glm models
 #Returns best model and name of the best univariate predictor
 fit.glm <- function(comm, predictor, taxon_ind = ncol(target)){
@@ -481,6 +510,56 @@ fitted.matrix <- function(models, predx = c(0:100)){
 ###################################################################################
 
 
+#Function to create taxon x dataset list
+taxon.dataset <- function(full_data){
+	#full_data = output from taxa.clean
+
+	taxa.dataset <- NA
+	for(i in 1:length(full_data)){
+		comm.out <- full_data[[i]]$comm.out
+		if(!is.data.frame(taxa.dataset)){	
+			if(ncol(comm.out) > 4){
+				taxa.dataset <- as.data.frame(matrix(colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE),
+						nrow = length(4:ncol(comm.out)), ncol = 1))
+				}else{
+					taxa.dataset <- as.data.frame(matrix(sum(comm.out[, 4], na.rm = TRUE),
+						nrow = length(4:ncol(comm.out)), ncol = 1))
+					}
+			rownames(taxa.dataset) <- names(comm.out)[4:ncol(comm.out)]
+			colnames(taxa.dataset) <- full_data[[i]]$data.name
+			}else{
+				taxa.dataset <- cbind(taxa.dataset, matrix(NA, nrow(taxa.dataset), ncol = 1))
+					names(taxa.dataset)[ncol(taxa.dataset)] <- full_data[[i]]$data.name
+				matched.taxa <- match(names(comm.out)[4:ncol(comm.out)], rownames(taxa.dataset))
+					matched.taxa2 <- matched.taxa[!is.na(matched.taxa)]
+				if(length(matched.taxa2) > 0){	
+					if(ncol(comm.out) > 4){
+						taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- 
+							colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[which(!is.na(matched.taxa))]
+						}else{
+							taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)
+							}
+					}
+				new.taxa <- names(comm.out)[4:ncol(comm.out)][is.na(matched.taxa)]
+					new.taxa <- new.taxa[!is.na(new.taxa)]
+				if(length(new.taxa) > 0){	
+					new.dataset <- as.data.frame(matrix(NA, nrow = length(new.taxa), ncol = ncol(taxa.dataset)))
+						names(new.dataset) <- names(taxa.dataset)
+						rownames(new.dataset) <- new.taxa
+				if(ncol(comm.out) > 4){	
+					new.dataset[ , ncol(new.dataset)] <- colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
+					}else{
+						new.dataset[ , ncol(new.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
+						}
+					taxa.dataset <- rbind(taxa.dataset, new.dataset)
+					}
+				}
+		}
+	return(taxa.dataset)
+	}
+
+###################################################################################
+###################################################################################
 
 
 

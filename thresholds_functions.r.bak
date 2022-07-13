@@ -463,15 +463,16 @@ fitted.matrix <- function(models, predx = c(0:100)){
 	#models = list of models to make predictions for
 	#predx = set of x-values to make predictions for
 
-	rates <- obs <- matrix(NA, nrow = 101, ncol = length(models))
-	for(i in 1:length(fitted_thresh$models)){
-		target <- fitted_thresh$models[[i]]
+	rates <- obs <- data.frame(matrix(NA, nrow = 101, ncol = length(models)))
+	for(i in 1:length(models)){
+		target <- models[[i]]
 		if(target$pval < 0.05){
 			fitted <- fitted.vals(target, predx = predx, mod_coef = NA)$fits
 			rates[ , i] <- fitted$d1
 			obs[ , i] <- fitted$obs
 			}
 		}
+	names(rates) <- names(obs) <- names(models)
 	rownames(rates) <- rownames(obs) <- predx
 	return(list(obs = obs, rates = rates))
 	}
@@ -480,6 +481,56 @@ fitted.matrix <- function(models, predx = c(0:100)){
 ###################################################################################
 
 
+#Function to create taxon x dataset list
+taxon.dataset <- function(full_data){
+	#full_data = output from taxa.clean
+
+	taxa.dataset <- NA
+	for(i in 1:length(full_data)){
+		comm.out <- full_data[[i]]$comm.out
+		if(!is.data.frame(taxa.dataset)){	
+			if(ncol(comm.out) > 4){
+				taxa.dataset <- as.data.frame(matrix(colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE),
+						nrow = length(4:ncol(comm.out)), ncol = 1))
+				}else{
+					taxa.dataset <- as.data.frame(matrix(sum(comm.out[, 4], na.rm = TRUE),
+						nrow = length(4:ncol(comm.out)), ncol = 1))
+					}
+			rownames(taxa.dataset) <- names(comm.out)[4:ncol(comm.out)]
+			colnames(taxa.dataset) <- full_data[[i]]$data.name
+			}else{
+				taxa.dataset <- cbind(taxa.dataset, matrix(NA, nrow(taxa.dataset), ncol = 1))
+					names(taxa.dataset)[ncol(taxa.dataset)] <- full_data[[i]]$data.name
+				matched.taxa <- match(names(comm.out)[4:ncol(comm.out)], rownames(taxa.dataset))
+					matched.taxa2 <- matched.taxa[!is.na(matched.taxa)]
+				if(length(matched.taxa2) > 0){	
+					if(ncol(comm.out) > 4){
+						taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- 
+							colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[which(!is.na(matched.taxa))]
+						}else{
+							taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)
+							}
+					}
+				new.taxa <- names(comm.out)[4:ncol(comm.out)][is.na(matched.taxa)]
+					new.taxa <- new.taxa[!is.na(new.taxa)]
+				if(length(new.taxa) > 0){	
+					new.dataset <- as.data.frame(matrix(NA, nrow = length(new.taxa), ncol = ncol(taxa.dataset)))
+						names(new.dataset) <- names(taxa.dataset)
+						rownames(new.dataset) <- new.taxa
+				if(ncol(comm.out) > 4){	
+					new.dataset[ , ncol(new.dataset)] <- colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
+					}else{
+						new.dataset[ , ncol(new.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
+						}
+					taxa.dataset <- rbind(taxa.dataset, new.dataset)
+					}
+				}
+		}
+	return(taxa.dataset)
+	}
+
+###################################################################################
+###################################################################################
 
 
 

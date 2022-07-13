@@ -16,6 +16,9 @@
 	model_fits <- fitted.matrix(models = fitted_thresh$models)
 	turn_points <- assign.taxon(dataset = turn_points$dataset)
 
+
+
+
 ##FIGURE 1: 
 
 	par(mai = c(0.8, 0.7, 0.1, 0.3))
@@ -49,38 +52,42 @@
 			}
 		text(x = 5, y = 0.97, labels = c('(A)'), cex = 3)
 		mtext('Occurrence probability', side = 2, line = 4, cex = 2)
-
-		#Add average occupancy
-		occ <- rowMeans(model_fits$obs, na.rm = TRUE)
-		#Add to plot
-		lines(xvals, occ, lwd=10, col = alpha(pal[2], 0.9))
-
 	
-	#Panel D: occupancy by taxon
+		#Add occupancy by taxon
 		taxtypes <- unique(turn_points$dataset$TaxonType)
 			taxtypes <- taxtypes[!is.na(taxtypes)]
 		taxon.names <- names(model_fits$obs)
 		taxon.names <- gsub(".+?\\__", '', taxon.names)
 		taxcats <- turn_points$matched.taxa$TaxonType[match(taxon.names, turn_points$matched.taxa$taxon_name)]
-
-		plot(0,0, xlim = c(0,100), ylim = c(0,1), col = 'white', 
-			xlab = '', ylab = '', xaxt = 'n', cex.lab = 2.5, cex.axis = 3)
-			axis(1, cex.axis = 3, padj = 1, cex.lab = 2.5, )
-
 		for(i in 1:length(taxtypes)){
 			#Extract data for that taxon group
 			taxobs <- model_fits$obs[ , which(taxcats == taxtypes[i])]
 			taxocc <- rowMeans(taxobs, na.rm = TRUE)
 			lines(taxocc, lwd = 2, col = i)
-			
-			quants <- apply(taxobs, MARGIN = 1, FUN = quantile, probs = c(0.25, 0.75),na.rm = TRUE)
-			polygon(x = c(predx, rev(predx)), y = c(quants[1,], rev(quants[2,])), col = alpha(i, 0.1))
-			
 			}
+
+		#Add average occupancy
+		occ <- rowMeans(model_fits$obs, na.rm = TRUE)
+		#Add to plot
+		lines(xvals, occ, lwd=10, col = alpha(pal[2], 0.9))
 	
 	
-	
-	
+	#Panel D: slopes histogram
+		slopes <- turn_points$dataset$slope
+		slopes[slopes < 0] <- 0 - log10(abs(slopes[slopes < 0])+1)
+		slopes[slopes > 0] <- log10(slopes[slopes > 0]+1)
+		dens <- density(slopes[turn_points$dataset$pval < 0.05], na.rm = TRUE)
+
+		plot(dens, xlim = c(-3, 1), 
+			xaxt = 'n', main = "", xlab = '', ylab = '',
+			lwd = 5, col = alpha(pal[5], 1), cex.lab = 2.5, cex.axis = 2)
+		polygon(dens, col = alpha(pal[5], 0.3), border = NA)
+		text(x = 5, y = 0.035, labels = c('(A)'), cex = 2)
+		mtext('Density', side = 2, line = 3.4, cex = 2)
+		mtext('Slope', 1, line = 3, cex = 2)
+		
+		axis(1, at=c(-3:1), labels = c(expression('-10'^2), expression('-10'^1),expression('-10'^0),0,expression('10'^0)))
+		
 	
 	
 	
