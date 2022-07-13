@@ -463,13 +463,16 @@ fitted.matrix <- function(models, predx = c(0:100)){
 	#models = list of models to make predictions for
 	#predx = set of x-values to make predictions for
 
-	rates <- obs <- matrix(NA, nrow = 101, ncol = length(models))
-	for(i in 1:length(fitted_thresh$models)){
-		target <- fitted_thresh$models[[i]]
-		fitted <- fitted.vals(target, predx = predx, mod_coef = NA)$fits
-		rates[ , i] <- fitted$d1
-		obs[ , i] <- fitted$obs
+	rates <- obs <- data.frame(matrix(NA, nrow = 101, ncol = length(models)))
+	for(i in 1:length(models)){
+		target <- models[[i]]
+		if(target$pval < 0.05){
+			fitted <- fitted.vals(target, predx = predx, mod_coef = NA)$fits
+			rates[ , i] <- fitted$d1
+			obs[ , i] <- fitted$obs
+			}
 		}
+	names(rates) <- names(obs) <- names(models)
 	rownames(rates) <- rownames(obs) <- predx
 	return(list(obs = obs, rates = rates))
 	}
