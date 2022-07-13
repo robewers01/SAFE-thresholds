@@ -174,15 +174,15 @@ fit.models <- function(taxa_data, lidar, predictor, min.obs = 5){
 ###################################################################################
 
 #Function to calculate predicted values and derivatives
-fitted.vals <- function(model, mod_coef){
+fitted.vals <- function(model, predx = seq((-50), 150, 0.1), mod_coef){
 	#model = fitted model for which values should be predicted
+	#predx = x values for which to return fitted values
 	#mod_coef = summary model information (passed for follow-up functions)
 
 	cf <- as.list(coef(model$bestmod))
 	names(cf) <- c("a","b")
 	mod_expr <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
 
-	predx <- seq((-50), 150, 0.1)
 	#Calculate expressions for derivatives of the model
 	x_p <- D(mod_expr, 'predx')
 	x_pp <- D(x_p, 'predx')
@@ -271,4 +271,189 @@ extract.turns <- function(turns_estimate){
 ###################################################################################
 
 
+
+#Function to estimate turning points for fitted models
+turns <- function(fitted_mod){
+	#fitted_mod = output from fit.models
+
+	turnpoints <- matrix(NA, nrow = length(fitted_mod$models), ncol = 2)
+	for(i in 1:length(fitted_mod$models)){			#For each fitted model....
+		print(paste('getting turning points for model', i, 'of', length(fitted_mod$models)))
+		target = fitted_mod$models[[i]]
+		#Check if fitted model was significant or not
+		if(as.numeric(fitted_mod$coefs$pval[i]) < 0.05){	#If it was a significant model
+			#Find turning points
+			fits <- fitted.vals(target, mod_coef = fitted_mod$coefs[i , ])		#Estimate fitted values and derivatives
+			turnings <- root.finder(fitted_vals = fits)
+			turnsdat <- unlist(extract.turns(turns_estimate = turnings))
+			turnpoints[i ,] <- turnsdat
+			}
+		}
+	out <- data.frame(cbind(fitted_mod$coefs, turnpoints))
+	names(out)[(ncol(out)-1):ncol(out)] <- c('turn.point', 'range.weight')
+	out[ , c(3,6:8,10:16,18:19)] <- sapply(out[, c(3,6:8,10:16,18:19)], as.numeric)
+	
+	return(out)
+	}
+
+###################################################################################
+###################################################################################
+
+
+
+#Function to summarise datasets
+summarise.data <- function(full.data){
+	#full.data = raw data
+	
+	datasets <- names(full.data)
+	datagroup <- NULL
+	for(i in 1:length(datasets)){
+		datagroup[i] <- full.data[[i]]$data.group
+		}
+	groups <- unique(datagroup)
+	surveys <- methods <- periods <- taxa <- numeric()
+	for(k in 1:length(groups)){
+		targets <- which(datagroup == groups[k])
+		surveys[k] <- length(targets)				#Number of surveys
+		surv_meth <- surv_year <- surv_taxa <- NULL
+		for(m in 1:length(targets)){
+			#Extract methods
+			surv_meth <- c(surv_meth, full.data[[targets[m]]]$method)
+			#Extract year
+			surv_year <- c(surv_year, full.data[[targets[m]]]$sample.year)
+			#Extract taxa
+			surv_taxa <- c(surv_taxa, names(full.data[[targets[m]]]$comm.out)[4:length(names(full.data[[targets[m]]]$comm.out))])
+			}
+		taxa[k] <- length(unique(surv_taxa))
+		methods[k] <- length(unique(surv_meth))
+		periods[k] <- length(unique(surv_year))
+		}
+	
+	out <- data.frame(groups, taxa, methods, periods, surveys)
+	out <- out[order(groups), ]
+	
+	return(out)
+	
+	}
+
+
+##########################################################################################################
+##########################################################################################################
+
+
+#Function to calculate number of taxa within datasets
+summarise.taxa <- function(full_data, min.obs = 5){
+	#full_data = dataset to summarise
+	#min.obs = minimum number of occurrences needed to model a taxon
+
+	rawtaxa <- mintaxa <- NULL
+	for(i in 1:length(full_data)){
+		target <- full_data[[i]]$comm.out
+		rawtaxa <- c(rawtaxa, names(target)[4:ncol(target)])
+		if(ncol(target) > 4){
+			taxind <- which(colSums(target[ , 4:ncol(target)]) >= min.obs)
+			}else{
+				taxind <- which(sum(target[ , 4]) >= min.obs)
+				}
+		mintaxa <- c(mintaxa, names(target)[taxind + 3])
+		}
+	all.taxa <- unique(rawtaxa)
+	modelled.taxa <- unique(mintaxa)
+	num.all.taxa <- length(all.taxa)
+	num.modelled.taxa <- length(modelled.taxa)
+
+	out <- list(all.taxa = all.taxa, modelled.taxa = modelled.taxa, 
+		num.all.taxa = num.all.taxa, num.modelled.taxa = num.modelled.taxa)
+	return(out)
+	}
+
+##########################################################################################################
+##########################################################################################################
+
+
+#Function to assign taxa to broad taxonomic categories and level of taxonomic precision
+assign.taxon <- function(dataset){
+		#dataset = dataframe containing 'taxon' field
+	
+	if (!require(safedata)) install.packages("safedata") && require(safedata)   ## Check if required packages are installed
+
+	#Import full taxa list from safedata
+	taxa <- jsonlite::fromJSON('https://www.safeproject.net/api/taxa')
+	taxa$worksheet_name <- taxa$taxon_name
+	taxa <- safedata:::taxon_index_to_taxon_table(taxa)
+
+	#Extract taxa that match directly
+	matched.ind <- match(unique(dataset$taxon), taxa$taxon_name)
+	matched.taxa <- taxa[matched.ind[!is.na(matched.ind)] , ]
+	
+	#Align aggregated taxa that don't match directly
+	if(length(grep('Agg', dataset$taxon)) > 0){
+		aggs <- unique(dataset$taxon)[is.na(matched.ind)]		#Vector of aggregated taxa names
+		agg.levels <- c('genus')
+		for(i in 1:length(agg.levels)){
+			targets <- aggs[grep(paste('Agg_', agg.levels[i], sep = ''), aggs)]
+			targ.names <- gsub(pattern = paste('Agg_', agg.levels[i], '_', sep = ''), replacement = '', x = targets)
+			targ.ind <- match(targ.names, taxa[, match(agg.levels[i], names(taxa))])
+			targ.sub <- taxa[targ.ind, ]
+			targ.sub$taxon_name <- targets
+			targ.sub$taxon_level <- agg.levels[i]
+			matched.taxa <- rbind(matched.taxa, targ.sub)
+			}
+		}
+		
+	#Assign taxonomic categories
+	TaxonType <- rep(NA, nrow(matched.taxa))
+	TaxonType[matched.taxa$kingdom == 'Plantae'] <- 'plant'
+	TaxonType[matched.taxa$class == 'Mammalia'] <- 'mammal'
+	TaxonType[matched.taxa$class == 'Aves'] <- 'bird'
+	TaxonType[matched.taxa$class == 'Reptilia'] <- 'reptile'
+	TaxonType[matched.taxa$class == 'Amphibia'] <- 'amphibian'
+	TaxonType[matched.taxa$class == 'Actinopterygii'] <- 'fish'
+	TaxonType[matched.taxa$phylum == 'Platyhelminthes' | matched.taxa$phylum == 'Nematoda' | matched.taxa$phylum == 'Annelida' | matched.taxa$phylum == 'Arthropoda' | matched.taxa$phylum == 'Mollusca' | matched.taxa$phylum == 'Nematomorpha'] <- 'invertebrate'
+	TaxonType[matched.taxa$kingdom == 'Chromista'] <- 'microbe'
+	TaxonType[matched.taxa$kingdom == 'Fungi'] <- 'fungi'
+	matched.taxa$TaxonType <- TaxonType
+	
+	#Assign level of taxonomic resolution
+	TaxonAgg <- matched.taxa$taxon_level
+	TaxonAgg[grep('Agg_order', matched.taxa$taxon_name)] <- 'order'
+	#Tidy up classifications
+	TaxonAgg[TaxonAgg == 'morphospecies'] <- 'species'
+	TaxonAgg[TaxonAgg == 'class'] <- NA
+	TaxonAgg[TaxonAgg == 'subclass'] <- NA
+	TaxonAgg[TaxonAgg == 'infraorder'] <- NA
+	TaxonAgg[TaxonAgg == 'phylum'] <- NA
+	matched.taxa$TaxonAgg <- TaxonAgg
+
+	
+	#Append information to dataset
+	dataset$TaxonType <- as.factor(matched.taxa$TaxonType[match(dataset$taxon, matched.taxa$taxon_name)])
+	dataset$TaxonAgg <- as.factor(matched.taxa$TaxonAgg[match(dataset$taxon, matched.taxa$taxon_name)])
+	
+	out <- list(dataset = dataset, matched.taxa = matched.taxa)
+	
+	return(out)
+	}
+
+###################################################################################
+###################################################################################
+
+
+#Function to return cumulative distribution
+cdf <- function(data, x_range = c(0:100)){
+	#data = vector of data to calculate cdf for
+	#x_range = range of x-values to calculate cdf over
+	
+	sums <- numeric()
+	for(i in min(x_range):max(x_range)){
+		sums <- c(sums, sum(data <= i, na.rm = TRUE))
+		}
+	props <- sums/ length(data)
+	
+	out <- data.frame(x = x_range, cdf = sums, prop = props)
+	return(out)
+	}
+
+###################################################################################
+###################################################################################
 
