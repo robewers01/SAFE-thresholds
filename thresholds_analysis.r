@@ -12,25 +12,25 @@
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
 	
 #Fit models and calculate summaries
-#	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.obs = 5,
-#	predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
-#		saveRDS(fitted_mod, 'results/fitted_thresh.rds')
-#	turn_points <- turns(fitted_thresh)
+#	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
+#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
+#		saveRDS(fitted_thresh, 'results/fitted_thresh.rds')
+#	turn_points <- turns(fitted_mod = fitted_thresh)
 #		saveRDS(turn_points, 'results/turn_points.rds')
 
 #Read in pre-calculated versions
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
+		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$num.occs), ]	#Remove taxa that weren't found for analyses
 	turn_points <- readRDS('results/turn_points.rds')
 
-	taxa_summary <- summarise.taxa(full_data = thresh.data, min.obs = 5)
-	taxa_cats <- assign.taxon(dataset = data.frame(taxon = taxa_summary$modelled.taxa))
+	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ])
 
 #Summary data
 	#Number of surveys
 		length(thresh.data)
 	#Number of taxa
-		taxa_summary$num.all.taxa		#all taxa
-		taxa_summary$num.modelled.taxa	#taxa with >= minimum number of occurrences
+		nrow(fitted_thresh)		#all taxa
+		sum(as.numeric(fitted_thresh$num.occs) >= 5)	#taxa with >= minimum number of occurrences
 	#Higher order taxa
 		length(unique(taxa_cats$matched.taxa$order))		#Number of orders
 		length(unique(taxa_cats$matched.taxa$genus))		#Number of genera
@@ -47,7 +47,7 @@
 	#Number of taxa with significant turnpoints
 		sum(!is.na(turn_points$turn.point))
 		sum(!is.na(turn_points$turn.point)) / nrow(turn_points)
-	#Number positive versus negative responses
+	#Number negative responses
 		sum(turn_points$slope[turn_points$pval < 0.05] < 0)		#are taxa responding negatively?
 		sum(turn_points$slope[turn_points$pval < 0.05] < 0)	 / sum(as.numeric(turn_points$pval) < 0.05)
 		

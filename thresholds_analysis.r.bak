@@ -12,25 +12,25 @@
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
 	
 #Fit models and calculate summaries
-	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.obs = 5,
-	predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
-		saveRDS(fitted_mod, 'results/fitted_thresh.rds')
-#	turn_points <- turns(fitted_thresh)
+#	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
+#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
+#		saveRDS(fitted_thresh, 'results/fitted_thresh.rds')
+#	turn_points <- turns(fitted_mod = fitted_thresh)
 #		saveRDS(turn_points, 'results/turn_points.rds')
 
 #Read in pre-calculated versions
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
+		fitted_thresh <- fitted_thresh$coefs[!is.na(fitted_thresh$coefs$num.occs), ]	#Remove taxa that weren't found for analyses
 	turn_points <- readRDS('results/turn_points.rds')
 
-	taxa_summary <- summarise.taxa(full_data = thresh.data, min.obs = 5)
-	taxa_cats <- assign.taxon(dataset = data.frame(taxon = taxa_summary$modelled.taxa))
+	taxa_cats <- assign.taxon(dataset = fitted_thresh)
 
 #Summary data
 	#Number of surveys
 		length(thresh.data)
 	#Number of taxa
-		taxa_summary$num.all.taxa		#all taxa
-		taxa_summary$num.modelled.taxa	#taxa with >= minimum number of occurrences
+		nrow(fitted_thresh)		#all taxa
+		sum(as.numeric(fitted_thresh$num.occs) > 5)	#taxa with >= minimum number of occurrences
 	#Higher order taxa
 		length(unique(taxa_cats$matched.taxa$order))		#Number of orders
 		length(unique(taxa_cats$matched.taxa$genus))		#Number of genera
@@ -56,47 +56,5 @@
 
 
 
-d<- fit.models(full_data = thresh.data, lidar = lidar.data, min.obs = 5,
-	predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
 
 
-#Function to fit binomial GLM or GLMER as appropriate
-fit.models <- function(full_data, lidar, predictor, min.obs = 5){
-	#full_data = raw data to be analysed
-	#lidar = dataframe containing lidar estimates at point locations
-	#predictor = dependent variable; one of 'agb', 'tch'
-	#min.obs = minimum number of presences required to analyse taxa
-
-	taxa_survey <- taxon.dataset(full_data)
-	models <- list()
-
-	for(i in 2:nrow(taxa_survey)){
-		print(paste('fitting models to taxon', i, 'of', nrow(taxa_survey), ':', rownames(taxa_survey)[i]))
-
-		#Get aligned dataset
-		comm_data <- align.data.multi(taxon = rownames(taxa_survey)[i], taxa_survey = taxa_survey, full_data = thresh.data,
-			lidar = lidar.data, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'),
-			min.obs = 1)
-			
-		if(sum(comm_data[, (length(predictor)+4)]) >= min.obs){		#Check there are enough presences to model
-			#Decide if mixed effect model is needed
-			mixed <- FALSE
-			if(length(unique(comm_data$survey)) > 1)	mixed <- TRUE
-			
-			#Fit models
-			if(mixed){
-				model <- fit.glmer(comm = comm_data, predictor = predictor)
-				coefs <- glmer.extract(glmer_output = model, taxa_data = full_data, comm = comm_data,
-					taxon = rownames(taxa_survey)[i], coefs = coefs)
-				}else{
-					model <- fit.glm(comm = comm_data, predictor, taxon_ind = length(predictor) + 4)
-					coefs <- glm.extract(glms_output = model, taxa_data = full_data, comm = comm_data,
-						taxon = rownames(taxa_survey)[i], coefs = coefs)
-					}
-			models[[1]] <- model
-			names(models)[[i]] <- rownames(taxa_survey)[i]		
-			}
-		}
-	
-	return(list(coefs = coefs, models = models))
-	}

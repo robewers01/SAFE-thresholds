@@ -126,7 +126,7 @@ fit.glmer <- function(comm, predictor){
 	aic <- numeric()
 	for(scale in 1:length(predictor)){						#For each predictor...
 		assign('pred', comm[, which(names(comm) == predictor[scale])])
-		model <- try(glmer(comm[,responseInd] ~ pred + (1 + pred|comm$survey), family = binomial), FALSE)
+		model <- try(glmer(comm[,responseInd] ~ pred + (1 + pred|factor(comm$survey)), family = binomial), FALSE)
 		if(class(model) != "try-error"){
 			assign(paste('mod', scale, sep = ""), model)
 			aic <- c(aic, AIC(model))
@@ -135,17 +135,21 @@ fit.glmer <- function(comm, predictor){
 			  aic <- c(aic, NA)
 			}
 		}
-		mod0 <- try(glmer(comm[,responseInd] ~ 1 + (1 + 1|comm$survey), family = binomial), FALSE)	#Fit null model
+		mod0 <- try(glmer(comm[,responseInd] ~ 1 + (1 + 1|factor(comm$survey)), family = binomial), FALSE)	#Fit null model
 	#Select best model
-	if(sum(diff(aic)) == 0){		#Where all models give same AIC or there's only a single model
-		best <- get(paste('mod', (which(!is.na(aic)== TRUE)[1]), sep = ""))	#Select model with smallest spatial scale
-		bestpred <- predictor[which(!is.na(aic)== TRUE)[1]]
+	if(sum(is.na(aic)) != length(aic)){	#Check at least one model was fitted
+		if(sum(diff(aic), na.rm = TRUE) == 0){		#Where all models give same AIC or there's only a single model
+			best <- get(paste('mod', (which(!is.na(aic)== TRUE)[1]), sep = ""))	#Select model with smallest spatial scale
+			bestpred <- predictor[which(!is.na(aic)== TRUE)[1]]
+			}else{
+				best <- get(paste('mod', (which(aic == min(aic, na.rm = TRUE))), sep = ""))
+				bestpred <- predictor[which(aic == min(aic, na.rm = TRUE))]
+				}
+				
+		pval <- anova(best, mod0, test = 'Chi')$Pr[2]		#Likelihood ratio test
 		}else{
-			best <- get(paste('mod', (which(aic == min(aic))), sep = ""))
-			bestpred <- predictor[which(aic == min(aic))]
+			best <- bestpred <- pval <- NA
 			}
-			
-	pval <- anova(best, mod0, test = 'Chi')$Pr[2]		#Likelihood ratio test
 	
 	return(list(bestmod = best, bestpred = bestpred, pval = pval))
 	}
@@ -155,9 +159,8 @@ fit.glmer <- function(comm, predictor){
 
 
 #Function to extract summary statistics from glm
-glm.extract <- function(glms_output, taxa_data, comm = comm, taxon, coefs = NA){
+glm.extract <- function(glms_output, comm = comm, taxon, coefs = NA){
 	#glms_output = output from call to fit.glm
-	#taxa_data = dataset list object containing data used to fit model
 	#comm = comm data used in analysis; output from align.data
 	#taxon = taxon name
 	#coefs = previously extracted stats from glm.extract
@@ -192,9 +195,8 @@ glm.extract <- function(glms_output, taxa_data, comm = comm, taxon, coefs = NA){
 
 
 #Function to extract summary statistics from glmer
-glmer.extract <- function(glmer_output, taxa_data, comm = comm, taxon, coefs = NA){
+glmer.extract <- function(glmer_output, comm = comm, taxon, coefs = NA){
 	#glmer_output = output from call to fit.glmer
-	#taxa_data = dataset list object containing data used to fit model
 	#comm = comm data used in analysis; output from align.data
 	#taxon = taxon name
 	#coefs = previously extracted stats from glm.extract
@@ -209,14 +211,19 @@ glmer.extract <- function(glmer_output, taxa_data, comm = comm, taxon, coefs = N
 	
 	taxon <- taxon
 	modtype <- 'glmer'
-	r2 <- 	r.squaredGLMM(glmer_output$bestmod)[1,1]
+	modR2 <- try(r.squaredGLMM(glmer_output$bestmod)[1,1], silent = TRUE)
+	if(class(modR2) != "try-error"){
+		r2 <- modR2
+		}else{
+			r2 <- NA
+			}
 	num.obs <- nrow(comm)
 	num.occs <- sum(comm[, match(taxon, names(comm))], na.rm = TRUE)
 	best.pred <- glmer_output$bestpred
 	min.x <- min(comm[, match(best.pred, names(comm))], na.rm = TRUE)
 	max.x <- max(comm[, match(best.pred, names(comm))], na.rm = TRUE)
-	intercept <- fixef(glmer_output$bestmod)[2]
-	slope <- fixef(glmer_output$bestmod)[1]
+	intercept <- fixef(glmer_output$bestmod)[1]
+	slope <- fixef(glmer_output$bestmod)[2]
 	pval <- glmer_output$pval
 	
 	stats <- c(taxon, modtype, r2, num.obs, num.occs, best.pred,
@@ -230,11 +237,11 @@ glmer.extract <- function(glmer_output, taxa_data, comm = comm, taxon, coefs = N
 ###################################################################################
 
 #Function to fit binomial GLM or GLMER as appropriate
-fit.models <- function(full_data, lidar, predictor, min.obs = 5){
+fit.models <- function(full_data, lidar, predictor, min.observs = 5){
 	#full_data = raw data to be analysed
 	#lidar = dataframe containing lidar estimates at point locations
-	#predictor = dependent variable; one of 'agb', 'tch'
-	#min.obs = minimum number of presences required to analyse taxa
+	#predictor = vector of dependent variables
+	#min.observs = minimum number of presences required to analyse taxa
 
 	taxa_survey <- taxon.dataset(full_data)
 	models <- list()
@@ -244,35 +251,42 @@ fit.models <- function(full_data, lidar, predictor, min.obs = 5){
 		print(paste('fitting models to taxon', i, 'of', nrow(taxa_survey), ':', rownames(taxa_survey)[i]))
 
 		#Get aligned dataset
-		comm_data <- align.data.multi(taxon = rownames(taxa_survey)[i], taxa_survey = taxa_survey, full_data = thresh.data,
-			lidar = lidar.data, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'),
+		comm_data <- align.data.multi(taxon = rownames(taxa_survey)[i], taxa_survey = taxa_survey, full_data = full_data,
+			lidar = lidar, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'),
 			min.obs = 1)
 			
 		if(!is.null(comm_data)){
 			
-			if(sum(comm_data[, (length(predictor)+4)]) >= min.obs){		#Check there are enough presences to model
+			if(sum(comm_data[, (length(predictor)+4)], na.rm = TRUE) >= min.observs){		#Check there are enough presences to model
 				#Decide if mixed effect model is needed
 				mixed <- FALSE
-	#			if(length(unique(comm_data$survey)) > 1)	mixed <- TRUE
+				if(length(unique(comm_data$survey)) > 1)	mixed <- TRUE		#If there's >1 survey, try a GLMER
 				
 				#Fit models
 				if(mixed){
-					model <- fit.glmer(comm = comm_data, predictor = predictor)
-					coefs <- glmer.extract(glmer_output = model, taxa_data = full_data, comm = comm_data,
+					comm = comm_data
+					model <- fit.glmer(comm = comm, predictor = predictor)
+					if(is.na(model$bestmod)) mixed <- FALSE		#If the model failed, then try a GLM
+					}
+				if(!mixed){
+					model <- fit.glm(comm = comm_data, predictor, taxon_ind = length(predictor) + 4)
+					coefs <- glm.extract(glms_output = model, comm = comm_data,
 						taxon = rownames(taxa_survey)[i], coefs = coefs)
-					}else{
-						model <- fit.glm(comm = comm_data, predictor, taxon_ind = length(predictor) + 4)
-						coefs <- glm.extract(glms_output = model, taxa_data = full_data, comm = comm_data,
-							taxon = rownames(taxa_survey)[i], coefs = coefs)
-						}
+					}
+				if(mixed){
+					coefs <- glmer.extract(glmer_output = model, comm = comm,
+						taxon = rownames(taxa_survey)[i], coefs = coefs)					
+					}
 				models[[i]] <- model
-				names(models)[[i]] <- rownames(taxa_survey)[i]		
+				names(models)[[i]] <- rownames(taxa_survey)[i]	
+				rm(mixed, model, comm_data, comm)
 				}else{
 					coefs[i ,] <- c(rownames(taxa_survey)[i], NA, NA, nrow(comm_data), sum(comm_data[, (length(predictor)+4)]), rep(NA, 6))
 					}
 			}else{
-				coefs[i ,] <- c(rownames(taxa_survey)[i], NA, NA, nrow(comm_data), sum(comm_data[, (length(predictor)+4)]), rep(NA, 6))
+				coefs[i ,] <- c(rownames(taxa_survey)[i], rep(NA, 10))
 				}
+			
 		}
 	
 	return(list(coefs = coefs, models = models))
@@ -283,13 +297,11 @@ fit.models <- function(full_data, lidar, predictor, min.obs = 5){
 ###################################################################################
 
 #Function to calculate predicted values and derivatives
-fitted.vals <- function(model, predx = seq((-50), 150, 0.1), mod_coef){
-	#model = fitted model for which values should be predicted
+fitted.vals <- function(predx = seq((-50), 150, 0.1), mod_coef){
 	#predx = x values for which to return fitted values
 	#mod_coef = summary model information (passed for follow-up functions)
 
-	cf <- as.list(coef(model$bestmod))
-	names(cf) <- c("a","b")
+	cf <- list(a = as.numeric(mod_coef$intercept), b = as.numeric(mod_coef$slope))
 	mod_expr <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
 
 	#Calculate expressions for derivatives of the model
@@ -385,22 +397,24 @@ extract.turns <- function(turns_estimate){
 turns <- function(fitted_mod){
 	#fitted_mod = output from fit.models
 
-	turnpoints <- matrix(NA, nrow = length(fitted_mod$models), ncol = 2)
-	for(i in 1:length(fitted_mod$models)){			#For each fitted model....
-		print(paste('getting turning points for model', i, 'of', length(fitted_mod$models)))
-		target = fitted_mod$models[[i]]
+	#Strip out taxa that weren't modelled
+	fitted_mod <- fitted_mod[!is.na(fitted_mod$modtype) , ]
+	
+	turnpoints <- matrix(NA, nrow = nrow(fitted_mod), ncol = 2)
+	for(i in 1:nrow(fitted_mod)){			#For each fitted model....
+		print(paste('getting turning points for model', i, 'of', nrow(fitted_mod)))
 		#Check if fitted model was significant or not
-		if(as.numeric(fitted_mod$coefs$pval[i]) < 0.05){	#If it was a significant model
+		if(as.numeric(fitted_mod$pval[i]) < 0.05){	#If it was a significant model
 			#Find turning points
-			fits <- fitted.vals(target, mod_coef = fitted_mod$coefs[i , ])		#Estimate fitted values and derivatives
+			fits <- fitted.vals(mod_coef = fitted_mod[i , ])		#Estimate fitted values and derivatives
 			turnings <- root.finder(fitted_vals = fits)
 			turnsdat <- unlist(extract.turns(turns_estimate = turnings))
 			turnpoints[i ,] <- turnsdat
 			}
 		}
-	out <- data.frame(cbind(fitted_mod$coefs, turnpoints))
+	out <- data.frame(cbind(fitted_mod, turnpoints))
 	names(out)[(ncol(out)-1):ncol(out)] <- c('turn.point', 'range.weight')
-	out[ , c(3,6:8,10:16,18:19)] <- sapply(out[, c(3,6:8,10:16,18:19)], as.numeric)
+	out[ , c(3:5, 7:13)] <- sapply(out[, c(3:5, 7:13)], as.numeric)
 	
 	return(out)
 	}
@@ -445,36 +459,6 @@ summarise.data <- function(full.data){
 	
 	}
 
-
-##########################################################################################################
-##########################################################################################################
-
-
-#Function to calculate number of taxa within datasets
-summarise.taxa <- function(full_data, min.obs = 5){
-	#full_data = dataset to summarise
-	#min.obs = minimum number of occurrences needed to model a taxon
-
-	rawtaxa <- mintaxa <- NULL
-	for(i in 1:length(full_data)){
-		target <- full_data[[i]]$comm.out
-		rawtaxa <- c(rawtaxa, names(target)[4:ncol(target)])
-		if(ncol(target) > 4){
-			taxind <- which(colSums(target[ , 4:ncol(target)]) >= min.obs)
-			}else{
-				taxind <- which(sum(target[ , 4]) >= min.obs)
-				}
-		mintaxa <- c(mintaxa, names(target)[taxind + 3])
-		}
-	all.taxa <- unique(rawtaxa)
-	modelled.taxa <- unique(mintaxa)
-	num.all.taxa <- length(all.taxa)
-	num.modelled.taxa <- length(modelled.taxa)
-
-	out <- list(all.taxa = all.taxa, modelled.taxa = modelled.taxa, 
-		num.all.taxa = num.all.taxa, num.modelled.taxa = num.modelled.taxa)
-	return(out)
-	}
 
 ##########################################################################################################
 ##########################################################################################################
