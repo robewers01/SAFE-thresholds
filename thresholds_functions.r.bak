@@ -63,7 +63,7 @@ align.data.multi <- function(taxon, taxa_survey, full_data, lidar, predictor, mi
 	for(k in 1:length(surveys)){		#For each of those surveys
 		target <- full_data[[match(surveys[k], names(full_data))]]
 		comm <- align.data(target$comm.out, lidar, predictor, min.obs = min.obs)	#Add lidar data
-		taxonind <- match(rownames(taxa_survey)[i], names(comm))
+		taxonind <- match(taxon, names(comm))
 		if(!is.na(taxonind)){
 			commsub <- comm[ , c(1:(length(predictor)+ 3),taxonind)]
 			commsub$survey <- surveys[k]
@@ -127,15 +127,19 @@ fit.glmer <- function(comm, predictor){
 	for(scale in 1:length(predictor)){						#For each predictor...
 		assign('pred', comm[, which(names(comm) == predictor[scale])])
 		model <- try(glmer(comm[,responseInd] ~ pred + (1 + pred|comm$survey), family = binomial), FALSE)
-		assign(paste('mod', scale, sep = ""), model)
-		aic <- c(aic, AIC(model))
-		rm(model)
+		if(class(model) != "try-error"){
+			assign(paste('mod', scale, sep = ""), model)
+			aic <- c(aic, AIC(model))
+			rm(model)
+			}else{
+			  aic <- c(aic, NA)
+			}
 		}
-	mod0 <- try(glmer(comm[,responseInd] ~ 1 + (1 + pred|comm$survey), family = binomial), FALSE)	#Fit null model
+		mod0 <- try(glmer(comm[,responseInd] ~ 1 + (1 + 1|comm$survey), family = binomial), FALSE)	#Fit null model
 	#Select best model
 	if(sum(diff(aic)) == 0){		#Where all models give same AIC or there's only a single model
-		best <- mod1		#Select model with smallest spatial scale
-		bestpred <- predictor[1]
+		best <- get(paste('mod', (which(!is.na(aic)== TRUE)[1]), sep = ""))	#Select model with smallest spatial scale
+		bestpred <- predictor[which(!is.na(aic)== TRUE)[1]]
 		}else{
 			best <- get(paste('mod', (which(aic == min(aic))), sep = ""))
 			bestpred <- predictor[which(aic == min(aic))]
@@ -244,25 +248,30 @@ fit.models <- function(full_data, lidar, predictor, min.obs = 5){
 			lidar = lidar.data, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'),
 			min.obs = 1)
 			
-		if(sum(comm_data[, (length(predictor)+4)]) >= min.obs){		#Check there are enough presences to model
-			#Decide if mixed effect model is needed
-			mixed <- FALSE
-			if(length(unique(comm_data$survey)) > 1)	mixed <- TRUE
+		if(!is.null(comm_data)){
 			
-			#Fit models
-			if(mixed){
-				model <- fit.glmer(comm = comm_data, predictor = predictor)
-				coefs <- glmer.extract(glmer_output = model, taxa_data = full_data, comm = comm_data,
-					taxon = rownames(taxa_survey)[i], coefs = coefs)
-				}else{
-					model <- fit.glm(comm = comm_data, predictor, taxon_ind = length(predictor) + 4)
-					coefs <- glm.extract(glms_output = model, taxa_data = full_data, comm = comm_data,
+			if(sum(comm_data[, (length(predictor)+4)]) >= min.obs){		#Check there are enough presences to model
+				#Decide if mixed effect model is needed
+				mixed <- FALSE
+	#			if(length(unique(comm_data$survey)) > 1)	mixed <- TRUE
+				
+				#Fit models
+				if(mixed){
+					model <- fit.glmer(comm = comm_data, predictor = predictor)
+					coefs <- glmer.extract(glmer_output = model, taxa_data = full_data, comm = comm_data,
 						taxon = rownames(taxa_survey)[i], coefs = coefs)
+					}else{
+						model <- fit.glm(comm = comm_data, predictor, taxon_ind = length(predictor) + 4)
+						coefs <- glm.extract(glms_output = model, taxa_data = full_data, comm = comm_data,
+							taxon = rownames(taxa_survey)[i], coefs = coefs)
+						}
+				models[[i]] <- model
+				names(models)[[i]] <- rownames(taxa_survey)[i]		
+				}else{
+					coefs[i ,] <- c(rownames(taxa_survey)[i], NA, NA, nrow(comm_data), sum(comm_data[, (length(predictor)+4)]), rep(NA, 6))
 					}
-			models[[1]] <- model
-			names(models)[[i]] <- rownames(taxa_survey)[i]		
 			}else{
-			    coefs[i ,] <- c(rownames(taxa_survey)[i], NA, NA, nrow(comm_data), sum(comm_data[, (length(predictor)+4)]), rep(NA, 6))
+				coefs[i ,] <- c(rownames(taxa_survey)[i], NA, NA, nrow(comm_data), sum(comm_data[, (length(predictor)+4)]), rep(NA, 6))
 				}
 		}
 	
