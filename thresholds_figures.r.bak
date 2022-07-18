@@ -13,7 +13,7 @@
 
 #Summary calculations
 	ecdf_out <- cdf(turn_points$turn.point)
-	model_fits <- fitted.matrix(models = fitted_thresh$models)
+	model_fits <- fitted.matrix(models = fitted_thresh)
 	turn_points <- assign.taxon(dataset = turn_points$dataset)
 
 
@@ -74,17 +74,20 @@
 	
 	#Panel D: slopes histogram
 		slopes <- turn_points$dataset$slope
-		slopes[slopes < 0] <- 0 - log10(abs(slopes[slopes < 0]))
-		slopes[slopes > 0] <- log10(slopes[slopes > 0])
+		slopes[slopes < 0] <- 0 - log10(abs(slopes[slopes < 0])+1)
+		slopes[slopes > 0] <- log10(slopes[slopes > 0]+1)
 		dens <- density(slopes[turn_points$dataset$pval < 0.05], na.rm = TRUE)
 
-		plot(dens, xlim = c(-3, 1), main = "", xlab = '', ylab = '',
+		plot(dens, xlim = c(-3, 1), 
+			xaxt = 'n', main = "", xlab = '', ylab = '',
 			lwd = 5, col = alpha(pal[5], 1), cex.lab = 2.5, cex.axis = 2)
 		polygon(dens, col = alpha(pal[5], 0.3), border = NA)
 		text(x = 5, y = 0.035, labels = c('(A)'), cex = 2)
 		mtext('Density', side = 2, line = 3.4, cex = 2)
-		mtext(expression('Slope (log'[10]*')'), 1, line = 3, cex = 2)
-
+		mtext('Slope', 1, line = 3, cex = 2)
+		
+		axis(1, at=c(-3:1), labels = c(expression('-10'^2), expression('-10'^1),expression('-10'^0),0,expression('10'^0)))
+		
 	
 	
 	

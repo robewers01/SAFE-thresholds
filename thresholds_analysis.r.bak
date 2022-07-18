@@ -4,12 +4,13 @@
 	setwd("C:/Users/rewers/OneDrive - Imperial College London/work/papers/in prep/ewers et al - SAFE meta-analysis/SAFE-thresholds/")
 	source("thresholds_functions.r")
 
-	require(safedata)
-	set_safe_dir("C:/Users/rewers/OneDrive - Imperial College London/work/SAFE project - private/safedata",update = FALSE)
+#	require(safedata)
+#	set_safe_dir("C:/Users/rewers/OneDrive - Imperial College London/work/SAFE project - private/safedata",update = FALSE)
 
 #Import data
 	thresh.data <- readRDS("data/threshold_taxa_data.rds")	#Site x species matrix for each dataset, containing only taxa that are duplicated across >1 dataset
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
+	func.groups <- readRDS('data/functional_groups.rds')			#Functional groups
 	
 #Fit models and calculate summaries
 #	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
@@ -20,17 +21,17 @@
 
 #Read in pre-calculated versions
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
-		fitted_thresh <- fitted_thresh$coefs[!is.na(fitted_thresh$coefs$num.occs), ]	#Remove taxa that weren't found for analyses
+		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$num.occs), ]	#Remove taxa that weren't found for analyses
 	turn_points <- readRDS('results/turn_points.rds')
 
-	taxa_cats <- assign.taxon(dataset = fitted_thresh)
+	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ])
 
 #Summary data
 	#Number of surveys
 		length(thresh.data)
 	#Number of taxa
 		nrow(fitted_thresh)		#all taxa
-		sum(as.numeric(fitted_thresh$num.occs) > 5)	#taxa with >= minimum number of occurrences
+		sum(as.numeric(fitted_thresh$num.occs) >= 5)	#taxa with >= minimum number of occurrences
 	#Higher order taxa
 		length(unique(taxa_cats$matched.taxa$order))		#Number of orders
 		length(unique(taxa_cats$matched.taxa$genus))		#Number of genera
@@ -47,13 +48,38 @@
 	#Number of taxa with significant turnpoints
 		sum(!is.na(turn_points$turn.point))
 		sum(!is.na(turn_points$turn.point)) / nrow(turn_points)
-	#Number positive versus negative responses
+	#Number negative responses
 		sum(turn_points$slope[turn_points$pval < 0.05] < 0)		#are taxa responding negatively?
 		sum(turn_points$slope[turn_points$pval < 0.05] < 0)	 / sum(as.numeric(turn_points$pval) < 0.05)
 		
 
 
 
+#Function to aggregate data by functional group
+full_data = thresh.data
+func_groups = func.groups
+predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000')
+min.obs = 1
+lidar = lidar.data
+
+
+	
+	#Extract list of taxa belonging to each functional group
+	taxa.lists <- taxaXfunc(func_groups = func.groups)
+	#Generate taxon x dataset matrix
+	taxaXdata <- taxon.dataset(full_data = thresh.data)
+	
+	#Generate functional groups x dataset matrix
+	for(i in 1:length(taxa.lists)){
+		longlist <- match(taxa.lists[[i]], rownames(taxaXdata))
+		shortlist <- longlist[!is.na(longlist)]
+		taxdat <- taxaXdata[shortlist, ]		#All taxa in here belong to that functional group
+		shorttaxa <- rownames(taxdat)
+		#Extract list of relevant datasets
+		funcdat <- taxdat[ , which(colSums(taxdat, na.rm = TRUE) > 0)]
+		analysis.data = align.data.func(func = names(taxa.lists)[i], func_survey = funcdat, full_data = thresh.data,
+			lidar = lidar.data, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'), min.obs = 1)
+		}
 
 
 

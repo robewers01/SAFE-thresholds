@@ -77,6 +77,39 @@ align.data.multi <- function(taxon, taxa_survey, full_data, lidar, predictor, mi
 ###################################################################################
 
 		
+#Function to extract and align data from multiple surveys per functional group
+align.data.func <- function(func, func_survey, full_data, lidar, predictor, min.obs = 1){
+	#func = functional group name to extract
+	#func_survey = output from call to function.dataset
+	#full_data = full dataset containing all data to model
+	#lidar = dataframe containing lidar estimates at point locations
+	#predictor = dependent variable(s) for analyses
+	#min.obs = minimum number of occurrences needed to model the taxon
+
+	surveys <- names(func_survey)	#Which surveys contain that functional group
+	data.out <- NULL
+	for(k in 1:length(surveys)){		#For each of those surveys
+		target <- full_data[[match(surveys[k], names(full_data))]]
+		comm <- align.data(target$comm.out, lidar, predictor, min.obs = min.obs)	#Add lidar data
+
+
+		#Aggregate data across all relevant taxa
+		taxonind <- match(rownames(func_survey), names(comm))
+		taxonind <- taxonind[!is.na(taxonind)]
+		commB <- data.frame(rowSums(comm[, taxonind]))
+		names(commB) <- func
+		commC <- cbind(comm[ , 1:(length(predictor)+ 3)], commB)
+		rownames(commC) <- rownames(comm)
+		commC$survey <- surveys[k]
+		data.out <- rbind(data.out, commC)
+		}
+	 return(data.out)
+	 }
+
+###################################################################################
+###################################################################################
+
+
 #Function to fit univariate glm models
 #Returns best model and name of the best univariate predictor
 fit.glm <- function(comm, predictor, taxon_ind = ncol(target)){
@@ -237,23 +270,45 @@ glmer.extract <- function(glmer_output, comm = comm, taxon, coefs = NA){
 ###################################################################################
 
 #Function to fit binomial GLM or GLMER as appropriate
-fit.models <- function(full_data, lidar, predictor, min.observs = 5){
+fit.models <- function(full_data, func_data = NA, lidar, predictor, min.observs = 5){
 	#full_data = raw data to be analysed
+	#func_data = functional traits data; only use when analysing functional groups rather than individual taxa
 	#lidar = dataframe containing lidar estimates at point locations
 	#predictor = vector of dependent variables
 	#min.observs = minimum number of presences required to analyse taxa
 
 	taxa_survey <- taxon.dataset(full_data)
-	models <- list()
+	to.iterate <- 1:nrow(taxa_survey)
+	#Extract list of taxa belonging to each functional group
+	if(is.data.frame(func_data)){
+		taxa.lists <- taxaXfunc(func_groups = func.groups)
+		to.iterate <- names(taxa.lists)
+		}
+
+#	models <- list()
 	coefs <- NA
 
-	for(i in 1:nrow(taxa_survey)){
-		print(paste('fitting models to taxon', i, 'of', nrow(taxa_survey), ':', rownames(taxa_survey)[i]))
-
+	for(i in 1:length(to.iterate)){
 		#Get aligned dataset
-		comm_data <- align.data.multi(taxon = rownames(taxa_survey)[i], taxa_survey = taxa_survey, full_data = full_data,
-			lidar = lidar, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'),
-			min.obs = 1)
+		if(!is.data.frame(func_data)){
+			print(paste('fitting models to taxon', i, 'of', length(to.iterate), ':', rownames(taxa_survey)[i]))
+			comm_data <- align.data.multi(taxon = rownames(taxa_survey)[i], taxa_survey = taxa_survey, full_data = full_data,
+				lidar = lidar, predictor = predictor,
+				min.obs = 1)
+			taxon <- rownames(taxa_survey)[i]
+			}else{
+				print(paste('fitting models to taxon', i, 'of', length(to.iterate), ':', to.iterate[i]))
+				longlist <- match(taxa.lists[[i]], rownames(taxa_survey))
+				shortlist <- longlist[!is.na(longlist)]
+				taxdat <- taxa_survey[shortlist, ]		#All taxa in here belong to that functional group
+				shorttaxa <- rownames(taxdat)
+				#Extract list of relevant datasets
+				funcdat <- taxdat[ , which(colSums(taxdat, na.rm = TRUE) > 0)]
+				comm_data = align.data.func(func = names(taxa.lists)[i], func_survey = funcdat, full_data = thresh.data,
+					lidar = lidar.data, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'), min.obs = 1)
+				taxon <- to.iterate[i]
+				}
+		
 			
 		if(!is.null(comm_data)){
 			
@@ -271,25 +326,26 @@ fit.models <- function(full_data, lidar, predictor, min.observs = 5){
 				if(!mixed){
 					model <- fit.glm(comm = comm_data, predictor, taxon_ind = length(predictor) + 4)
 					coefs <- glm.extract(glms_output = model, comm = comm_data,
-						taxon = rownames(taxa_survey)[i], coefs = coefs)
+						taxon = taxon, coefs = coefs)
 					}
 				if(mixed){
 					coefs <- glmer.extract(glmer_output = model, comm = comm,
-						taxon = rownames(taxa_survey)[i], coefs = coefs)					
+						taxon = taxon, coefs = coefs)					
 					}
-				models[[i]] <- model
-				names(models)[[i]] <- rownames(taxa_survey)[i]	
+#				models[[i]] <- model
+#				names(models)[[i]] <- rownames(taxa_survey)[i]	
 				rm(mixed, model, comm_data, comm)
 				}else{
-					coefs[i ,] <- c(rownames(taxa_survey)[i], NA, NA, nrow(comm_data), sum(comm_data[, (length(predictor)+4)]), rep(NA, 6))
+					coefs[i ,] <- c(taxon, NA, NA, nrow(comm_data), sum(comm_data[, (length(predictor)+4)]), rep(NA, 6))
 					}
 			}else{
-				coefs[i ,] <- c(rownames(taxa_survey)[i], rep(NA, 10))
+				coefs[i ,] <- c(taxon, rep(NA, 10))
 				}
 			
 		}
 	
-	return(list(coefs = coefs, models = models))
+#	return(list(coefs = coefs, models = models))
+	return(coefs)
 	}
 
 
@@ -551,16 +607,16 @@ cdf <- function(data, x_range = c(0:100)){
 ###################################################################################
 
 
-	#Function to create matrix of observations and rates of change for all taxa
+#Function to create matrix of observations and rates of change for all taxa
 fitted.matrix <- function(models, predx = c(0:100)){
-	#models = list of models to make predictions for
+	#models = output from call to fit.models
 	#predx = set of x-values to make predictions for
 
-	rates <- obs <- data.frame(matrix(NA, nrow = 101, ncol = length(models)))
+	rates <- obs <- data.frame(matrix(NA, nrow = 101, ncol = nrow(models)))
 	for(i in 1:length(models)){
-		target <- models[[i]]
+		target <- models[i, ]
 		if(target$pval < 0.05){
-			fitted <- fitted.vals(target, predx = predx, mod_coef = NA)$fits
+			fitted <- fitted.vals(predx = predx, mod_coef = target)$fits
 			rates[ , i] <- fitted$d1
 			obs[ , i] <- fitted$obs
 			}
@@ -626,6 +682,58 @@ taxon.dataset <- function(full_data){
 ###################################################################################
 
 
+
+#Function to extract lists of taxa belonging to all functional groups
+taxaXfunc <- function(func_groups){
+	#func_groups = functional traits data
+
+	func_groups <- func_groups[!is.na(func_groups$taxon_name), ]
+	taxon.names <- unique(func_groups$taxon_name)
+	func_groups <- as.data.frame(func_groups[match(taxon.names, func_groups$taxon_name), ])
+	#Generate vector of functional groups
+	groups.list <- names(func_groups)#[13:ncol(func_groups)]
+	#Exclude numeric traits (these have all been categorised and are captured in other fiels)
+	num.col <- NULL
+	for(k in 1:ncol(func_groups)){
+		num.col <- c(num.col, is.numeric(func_groups[, k]))
+		}
+	groups <- groups.list[!num.col]
+	#Exclude unnecessary taxonomic information
+	groups <- groups[-c(1:3,7:12)]
+	#Aggregate groups split by TaxonType
+	groups.agg <- gsub('_.+', '', groups)
+	groups.unique <- unique(groups.agg)
+	
+	#Extract taxon list
+	out.list <- list()
+	for(i in 1:length(groups.unique)){		#For each grouping factor
+		target.group <- groups.unique[i]
+		target.names <- groups[which(groups.agg == target.group)]
+		target.func <- as.data.frame(func_groups[ , match(target.names, names(func_groups))])
+		rownames(target.func) <- rownames(func_groups)
+	#		#Remove duplicates and rename rows by taxon_name
+	#		taxon.names <- unique(func_groups$taxon_name)
+	#		target.func <- as.data.frame(target.func[match(taxon.names, func_groups$taxon_name), ])
+	#		rownames(target.func) <- taxon.names
+		target.vals <- unique(c(unique(unlist(apply(target.func, 2, unique)))))
+		target.vals <- target.vals[!is.na(target.vals)]
+		out.names <- paste(target.group, '_', target.vals, sep = '')	#Unique functional groups to form
+		for(j in 1:length(out.names)){	#For each of those functional groups...
+			#Generate list of taxa
+			taxanames <- NULL
+			for(k in 1:ncol(target.func)){	#For each column...
+				taxanames <- c(taxanames, rownames(target.func)[which(target.func[, k] == target.vals[j])])
+				}
+			out.list[[length(out.list)+1]] <- unique(taxanames)
+			names(out.list)[length(out.list)] <- out.names[j]
+			}
+		}
+	
+	return(out.list)
+	}
+
+###################################################################################
+###################################################################################
 
 
 

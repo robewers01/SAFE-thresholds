@@ -6,14 +6,16 @@
 
 #Load packages
 	require(paletteer)
+	require(scales)
 
 #Read in data
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
+		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$modtype), ]	#Remove taxa that weren't found for analyses
 	turn_points <- readRDS('results/turn_points.rds')
 
 #Summary calculations
 	ecdf_out <- cdf(turn_points$turn.point)
-	model_fits <- fitted.matrix(models = fitted_thresh$models)
+	model_fits <- fitted.matrix(models = fitted_thresh)
 	turn_points <- assign.taxon(dataset = turn_points$dataset)
 
 
@@ -24,6 +26,8 @@
 	par(mai = c(0.8, 0.7, 0.1, 0.3))
 	par(oma = c(2, 2, 0, 1.5))
 	xvals <- 0:100
+	pal <- paletteer_d("ggthemes::excel_Aspect")
+
 
 	#Panel A: Cumulative distribution function
 		plot(ecdf_out$x, ecdf_out$prop, type = "l", lwd = 10 , col = alpha(pal[3], 0.7),
@@ -36,7 +40,8 @@
 
 
 	#Panel B: rates of change
-		plot(x = xvals, y = abs(rowMeans(model_fits$rates, na.rm = TRUE)), 
+		plot(x = xvals, y = log10(abs(rowMeans(model_fits$rates, na.rm = TRUE))), 
+			#ylim=c(0,0.05),
 			pch = 19, col = alpha(pal[4], 0.3), cex = 3,
 			xlab = '', ylab = '', cex.lab = 2.5, cex.axis = 3, xaxt = 'n')
 			axis(1, cex.axis = 3, padj = 1, cex.lab = 2.5)

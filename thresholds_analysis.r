@@ -4,12 +4,13 @@
 	setwd("C:/Users/rewers/OneDrive - Imperial College London/work/papers/in prep/ewers et al - SAFE meta-analysis/SAFE-thresholds/")
 	source("thresholds_functions.r")
 
-	require(safedata)
-	set_safe_dir("C:/Users/rewers/OneDrive - Imperial College London/work/SAFE project - private/safedata",update = FALSE)
+#	require(safedata)
+#	set_safe_dir("C:/Users/rewers/OneDrive - Imperial College London/work/SAFE project - private/safedata",update = FALSE)
 
 #Import data
 	thresh.data <- readRDS("data/threshold_taxa_data.rds")	#Site x species matrix for each dataset, containing only taxa that are duplicated across >1 dataset
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
+	func.groups <- readRDS('data/functional_groups.rds')			#Functional groups
 	
 #Fit models and calculate summaries
 #	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
@@ -54,7 +55,17 @@
 
 
 
+#Function to aggregate data by functional group
+full_data = thresh.data
+func_groups = func.groups
+predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000')
+min.observs = 5
+lidar = lidar.data
 
+
+	
+fitted_func <- fit.models(full_data =thresh.data, func_data = func.groups, lidar = lidar.data,
+	predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'), min.observs = 5)
 
 
 
