@@ -15,6 +15,7 @@
 		fitted_func <- fitted_func[!is.na(fitted_func$num.occs), ]	#Remove taxa that weren't found for analyses
 	turn_points <- readRDS('results/turn_points.rds')
 	func_points <- readRDS('results/func_points.rds')
+	break_points <- readRDS('results/break_points.rds')
 
 #Summary calculations
 	ecdf_out <- cdf(turn_points$turn.point)
@@ -24,11 +25,17 @@
 	turn_points <- assign.taxon(dataset = turn_points)
 
 
+#Exclude taxonomic groups from functional groups
+	taxongroupsA <- c(grep('order', fitted_func$taxon), grep('family', fitted_func$taxon), grep('genus', fitted_func$taxon))
+	fitted_func <- fitted_func[-taxongroupsA,]
+	taxongroupsB <- c(grep('order', func_points$taxon), grep('family', func_points$taxon), grep('genus', func_points$taxon))
+	func_points <- func_points[-taxongroupsB,]
 
 
-##FIGURE 1: 
 
-png('figures/fig1.png'), width = 800, height = 800)
+##FIGURE 1: MAIN RESULTS
+
+png('figures/fig1.png', width = 800, height = 800)
 {
 	par(mfrow = c(2,2))
 	par(mai = c(0.8, 0.8, 0.3, 0.3))
@@ -36,6 +43,134 @@ png('figures/fig1.png'), width = 800, height = 800)
 	xvals <- 0:100
 	pal <- paletteer_d("ggthemes::excel_Aspect")
 
+	#Panel A: Cumulative distribution function
+	{
+		#Taxa
+		plot(ecdf_out$x, ecdf_out$prop, type = "l", lwd = 5 , col = pal[4],
+			ylim = c(0,0.6), 
+			xlim = c(0, 100), ylab = '', 
+			xlab = '', cex.lab = 2.5, cex.axis = 2)
+		#Functional groups
+		lines(ecdf_func$x, ecdf_func$prop, lwd = 5 , col = pal[1])
+		
+		#Thresholds
+	#	plot.breaks(x = ecdf_out$x, y = ecdf_out$prop, pch = 21, cex = 5, lwd = 2 )
+	#	plot.breaks(ecdf_func$x, ecdf_func$prop, pch = 21, cex = 5, lwd = 2 )
+		
+		legend('bottomleft', legend = c('taxa', 'groups'), 
+			pch = c(22,22),
+			pt.bg = c(alpha(pal[4], 0.3), alpha(pal[1],0.3)),
+			col = c(pal[4], pal[1]), 
+			text.col=c(pal[4], pal[1]),
+			cex = 2, pt.cex = 4, lty = 0, bty = 'n', lwd = 2)
+
+#		legend('bottomleft', legend = c('taxa', 'groups', 'accel.', 'decel.'), 
+#			pch = c(22,22, 21, 21),
+#			pt.bg = c(alpha(pal[4], 0.3), alpha(pal[1],0.3), 'white', alpha(pal[3], 0.8)),
+#			col = c(pal[4], pal[1], 1, 1), 
+#			text.col=c(pal[4], pal[1], 1, pal[3]),
+#			cex = 2, pt.cex = 4, lty = 0, bty = 'n', lwd = 2)
+		
+		text(x = 0, y = 0.58, labels = c('(A) Cumulative impact'), cex = 2, pos = 4)
+		mtext('Proportion of taxa', side = 2, line = 4, cex = 2)
+		mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
+	}
+
+	#Panel B: mean occurrence
+	{
+		plot(0,0, xlim = c(0,100), ylim = c(0,1), col = 'white', 
+			xlab = '', ylab = '',  cex.lab = 2.5, cex.axis = 2)
+
+		#Taxa
+		taxon_occ <- apply(model_fits$obs, MARGIN = 1, FUN = mean, na.rm = TRUE)
+		lines(xvals, taxon_occ, lwd=5, col = pal[4])
+		confints <- apply(model_fits$obs, MARGIN = 1, FUN = quantile, probs = c(0.025, 0.975), na.rm = TRUE)
+		polygon(x = c(xvals, rev(xvals)), y = c(confints[1,], rev(confints[2,])),
+			col = alpha(pal[4], 0.3))
+
+		#Functional groups
+		func_occ <- apply(func_fits$obs, MARGIN = 1, FUN = mean, na.rm = TRUE)
+		lines(xvals, func_occ, lwd=5, col = pal[1])
+		confints <- apply(func_fits$obs, MARGIN = 1, FUN = quantile, probs = c(0.025, 0.975), na.rm = TRUE)
+		polygon(x = c(xvals, rev(xvals)), y = c(confints[1,], rev(confints[2,])),
+			col = alpha(pal[1], 0.3))
+
+		#Thresholds
+	#	plot.breaks(x = xvals, y = taxon_occ, pch = 21, cex = 5, lwd = 2 )
+	#	plot.breaks(x = xvals, y = func_occ, pch = 21, cex = 5, lwd = 2 )
+
+		text(x = 0, y = 0.97, labels = c('(B) Mean occurrence'), cex = 2, pos = 4)
+		mtext('Occurrence probability', side = 2, line = 4, cex = 2)
+		mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
+	}
+
+
+	#Panel C: turning points density
+	{
+		#Taxa
+		taxa_turn <- turn_points$dataset$turn.point[!is.na(turn_points$dataset$turn.point)]
+		plot(density(taxa_turn), xlim = c(0,100), main = "", xlab = '', ylab = '',
+			ylim = c(0, 0.1),
+			lwd = 5, col = alpha(pal[4], 1), cex.lab = 2.5, cex.axis = 2)
+		#Functional groups
+		func_turn <- func_points$turn.point[!is.na(func_points$turn.point)]
+		polygon(density(func_turn), col = alpha(pal[1], 0.3), angle = -45, 
+			border = pal[1], lwd = 5)
+
+		text(x = 0, y = 0.097, labels = c('(C) Turning points'), cex = 2, pos = 4)
+		mtext('Density', side = 2, line = 4, cex = 2)
+		mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
+	}
+	
+	#Panel D: rates of change density
+	#par(mai = c(0.8, 0.8, 0.3, 0.3))
+	#par(oma = c(2, 2, 0, 0))
+		#Taxa
+		taxa_rate <- turn_points$dataset$turn.point[!is.na(turn_points$dataset$maxrate)]
+		plot(density(taxa_rate), xlim = c(0,100), main = "", xlab = '', ylab = '',
+			ylim = c(0, 0.03),
+			lwd = 5, col = alpha(pal[4], 1), cex.lab = 2.5, cex.axis = 2)
+		#Functional groups
+		func_rate <- func_points$maxrate[!is.na(func_points$maxrate)]
+		polygon(density(func_rate), col = alpha(pal[1], 0.3), angle = -45, 
+			border = pal[1], lwd = 5)
+	
+		text(x = 0, y = 0.029, labels = c('(D) Maximum rate of change'), cex = 2, pos = 4)
+		mtext('Density', side = 2, line = 4, cex = 2)
+		mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
+	
+	
+	
+	}
+	dev.off()
+		
+	
+
+
+	
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###########################
+##NOT USED###########
 
 	#Panel A: slopes density
 	{
@@ -71,62 +206,13 @@ png('figures/fig1.png'), width = 800, height = 800)
 			cex = 2, pt.cex = 4, lty = 0, bty = 'n', lwd = 2)
 	}
 
-	#Panel B: mean occurrence
-	{
-		plot(0,0, xlim = c(0,100), ylim = c(0,1), col = 'white', 
-			xlab = '', ylab = '',  cex.lab = 2.5, cex.axis = 2)
-
-		#Taxa
-		taxon_occ <- apply(model_fits$obs, MARGIN = 1, FUN = mean, na.rm = TRUE)
-		lines(xvals, taxon_occ, lwd=10, col = pal[4])
-		confints <- apply(model_fits$obs, MARGIN = 1, FUN = quantile, probs = c(0.025, 0.975), na.rm = TRUE)
-		polygon(x = c(xvals, rev(xvals)), y = c(confints[1,], rev(confints[2,])),
-			col = alpha(pal[4], 0.3))
-
-		#Functional groups
-		func_occ <- apply(func_fits$obs, MARGIN = 1, FUN = mean, na.rm = TRUE)
-		lines(xvals, func_occ, lwd=10, col = pal[1])
-		confints <- apply(func_fits$obs, MARGIN = 1, FUN = quantile, probs = c(0.025, 0.975), na.rm = TRUE)
-		polygon(x = c(xvals, rev(xvals)), y = c(confints[1,], rev(confints[2,])),
-			col = alpha(pal[1], 0.3))
-
-		#Tthresholds
-		plot.breaks(x = xvals, y = taxon_occ, pch = 21, cex = 5, lwd = 2 )
-		plot.breaks(x = xvals, y = func_occ, pch = 21, cex = 5, lwd = 2 )
-
-		text(x = 95, y = 0.97, labels = c('(B)'), cex = 3)
-		mtext('Occurrence probability', side = 2, line = 4, cex = 2)
-		mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
-	}
 
 
-	#Panel C: Cumulative distribution function
-	{
-		#Taxa
-		plot(ecdf_out$x, ecdf_out$prop, type = "l", lwd = 10 , col = pal[4],
-			ylim = c(0,0.6), 
-			xlim = c(0, 100), ylab = '', 
-			xlab = '', cex.lab = 2.5, cex.axis = 2)
-		#Functional groups
-		lines(ecdf_func$x, ecdf_func$prop, lwd = 10 , col = pal[1])
-		
-		#Thresholds
-		plot.breaks(x = ecdf_out$x, y = ecdf_out$prop, pch = 21, cex = 5, lwd = 2 )
-		plot.breaks(ecdf_func$x, ecdf_func$prop, pch = 21, cex = 5, lwd = 2 )
-		
-		legend('bottomleft', legend = c('taxa', 'groups', 'accel.', 'decel.'), 
-			pch = c(22,22, 21, 21),
-			pt.bg = c(alpha(pal[4], 0.3), alpha(pal[1],0.3), 'white', alpha(pal[3], 0.8)),
-			col = c(pal[4], pal[1], 1, 1), 
-			text.col=c(pal[4], pal[1], 1, pal[3]),
-			cex = 2, pt.cex = 4, lty = 0, bty = 'n', lwd = 2)
-		
-		text(x = 95, y = 0.58, labels = c('(B)'), cex = 3)
-		mtext('Proportion of taxa', side = 2, line = 4, cex = 2)
-		mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
-	}
+
+
 
 	#Panel D: rates of change
+	{
 		plot(0,0, xlim = c(0,100), ylim = c(0,0.03), col = 'white', 
 			xlab = '', ylab = '',  cex.lab = 2.5, cex.axis = 2)
 
@@ -151,12 +237,5 @@ png('figures/fig1.png'), width = 800, height = 800)
 		#Thresholds
 		try(plot.breaks(x = xvals, y = func_occ, pch = 21, cex = 5, lwd = 2 ), silent = TRUE)
 		try(plot.breaks(x = xvals, y = taxon_occ, pch = 21, cex = 5, lwd = 2 ), silent = TRUE)
-
-	
 	}
-	dev.off()
-		
-	
-	
-	
 	

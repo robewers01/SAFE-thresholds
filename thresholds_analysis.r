@@ -23,6 +23,8 @@
 #		saveRDS(turn_points, 'results/turn_points.rds')
 #	func_points <- turns(fitted_mod = fitted_func)
 #		saveRDS(func_points, 'results/func_points.rds')
+#	break_points <- func.thresholds(func_groups = func.groups, turns_taxa = turn_points)
+#		saveRDS(break_points, 'results/break_points.rds')
 
 #Read in pre-calculated versions
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
@@ -31,8 +33,17 @@
 		fitted_func <- fitted_func[!is.na(fitted_func$num.occs), ]	#Remove taxa that weren't found for analyses
 	turn_points <- readRDS('results/turn_points.rds')
 	func_points <- readRDS('results/func_points.rds')
+	break_points <- readRDS('results/break_points.rds')
+	func_points <- readRDS('results/func_points.rds')
 
 	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ])
+
+#Exclude taxonomic groups from functional groups
+	taxongroupsA <- c(grep('order', fitted_func$taxon), grep('family', fitted_func$taxon), grep('genus', fitted_func$taxon))
+	fitted_func <- fitted_func[-taxongroupsA,]
+	taxongroupsB <- c(grep('order', func_points$taxon), grep('family', func_points$taxon), grep('genus', func_points$taxon))
+	func_points <- func_points[-taxongroupsB,]
+
 
 #Summary data
 	#Number of surveys
@@ -75,44 +86,6 @@
 
 
 
-#Function to extract thresholds per functional group
-turns_taxa = turn_points
-func_groups = func.groups
-
-
-func.thresholds <- function(func_groups, turns_taxa){
-	#func_groups = functional traits data
-	#turns_taxa = output from call to turns that used individual taxa
-
-	taxa.func <- taxaXfunc(func_groups = func_groups)	#list of taxa per functional group
-	turns <- rates <- data.frame(matrix(NA, nrow = 0, ncol = 3))
-	for(i in 1:100){#length(taxa.func){
-		print(paste('Working on functional group', i, 'out of', length(taxa.func)))
-		#Extract data
-		taxa <- taxa.func[[i]]
-		taxinds <- match(taxa, turns_taxa$taxon)
-		taxinds <- taxinds[!is.na(taxinds)]
-		models <- turns_taxa[taxinds, ]
-		
-		#Construct CDFs
-		turnsCDF <- cdf(data = models$turn.point, x_range = c(0:100))
-		ratesCDF <- cdf(data = models$maxrate, x_range = c(0:100))
-		
-		#Breakpoints
-		turn_breaks <- try(plot.breaks(x = turnsCDF$x, y = turnsCDF$prop, add_plot = FALSE), silent = TRUE)
-		rate_breaks <- try(plot.breaks(x = ratesCDF$x, y = ratesCDF$prop, add_plot = FALSE), silent = TRUE)
-		
-		if(class(turn_breaks) != "try-error"){			
-			turns <- rbind(turns, turn_breaks)
-			}
-		if(class(rate_breaks) != "try-error"){			
-			rates <- rbind(rates, rate_breaks)
-			}
-		rm(turn_breaks, rate_breaks)
-		}
-	
-	return(list(turn.breaks = turns, rate.breaks = rates))
-	}
 
 
 

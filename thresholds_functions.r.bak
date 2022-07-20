@@ -803,98 +803,95 @@ taxaXfunc <- function(func_groups){
 
 
 #Function to find breakpoints in curvilinear bivariate plots
-break.points <- function(x, y, ss = 10){
+#break.points <- function(x, y, ss = 10){
 	#x = vector of x-axis values
 	#y = vector of y-axis values
 	#ss = what fraction of observations to use when scanning for breakpoints? 
 		#This speeds up the fitting, but is only called if length(x) > 1000
 
-	if (!require(strucchange)) install.packages("strucchange") && require(strucchange)   ## Check if required packages are installed
+#	if (!require(strucchange)) install.packages("strucchange") && require(strucchange)   ## Check if required packages are installed
 
-	dat = data.frame(x = x, y = y)
+#	dat = data.frame(x = x, y = y)
 	
 	#Subset every ss'th observations 
-	if(length(x) > 1000){
-		data = dat[c(seq(1, nrow(dat), ss)), ]
-		}else{
-			data = dat}
+#	if(length(x) > 1000){
+#		data = dat[c(seq(1, nrow(dat), ss)), ]
+#		}else{
+#			data = dat}
 	
 	#Find breakpoints
-	bp <- breakpoints(data$y ~ data$x)
-	d <- coef(bp)[, 2]
+#	bp <- breakpoints(data$y ~ data$x)
+#	d <- coef(bp)[, 2]
 	#Record breakpoints
-	bps<-data$x[bp$breakpoints]
-	bps.y<-data$y[bp$breakpoints]
+#	bps<-data$x[bp$breakpoints]
+#	bps.y<-data$y[bp$breakpoints]
 	
 	#Classify into acceleration vs deceleration
-	rate <- rep(NA, length(bps))
-	rate[which(diff(d) > 0)] <- 'accelerate'
-	rate[which(diff(d) < 0)] <- 'decelerate'
+#	rate <- rep(NA, length(bps))
+#	rate[which(diff(d) > 0)] <- 'accelerate'
+#	rate[which(diff(d) < 0)] <- 'decelerate'
 
-	out <- data.frame(bps = bps, bps.y = bps.y, type = rate)
-	return(out)
+#	out <- data.frame(bps = bps, bps.y = bps.y, type = rate)
+#	return(out)
 	
-	}
+#	}
 	
 ###################################################################################
 ###################################################################################
 
 
 #Function to calculate and add breakpoints to figure
-plot.breaks <- function(x, y, add_plot = TRUE, ...){
+#plot.breaks <- function(x, y, add_plot = TRUE, ...){
 	#x = x values
 	#y = y values
 	#add_plot = binary; add breakpoints to open plot or not?
 	#... = parameters passed to plot function
 	
-	bp <- break.points(x = x, y = y)
-	pt.col <- rep('white', nrow(bp))
-		pt.col[bp$type == 'decelerate'] <- alpha(pal[3], 1)
-#	for(i in 1:nrow(bp)){
-#		arrows(bp$bps[i], bp$bps.y[i], bp$bps[i], -1, col = alpha(pal[3], 0.4), code = 0, lwd = 2, lty = 2)
-#		}
-	if(add_plot) points(bp$bps, bp$bps.y, bg = alpha(pt.col, 0.8), ...)
-	return(bp)
-	}
+#	bp <- break.points(x = x, y = y)
+#	pt.col <- rep('white', nrow(bp))
+#		pt.col[bp$type == 'decelerate'] <- alpha(pal[3], 1)
+#	if(add_plot) points(bp$bps, bp$bps.y, bg = alpha(pt.col, 0.8), ...)
+#	return(bp)
+#	}
 
 ###################################################################################
 ###################################################################################
 
 
 #Function to extract thresholds per functional group
-func.thresholds <- function(func_groups, turns_taxa){
+#func.thresholds <- function(func_groups, turns_taxa){
 	#func_groups = functional traits data
 	#turns_taxa = output from call to turns that used individual taxa
 
-	taxa.func <- taxaXfunc(func_groups = func_groups)	#list of taxa per functional group
-	turns <- rates <- data.frame(matrix(NA, nrow = 0, ncol = 3))
-	for(i in 1:length(taxa.func){
-		print(paste('Working on functional group', i, 'out of', length(taxa.func)))
-		#Extract data
-		taxa <- taxa.func[[i]]
-		taxinds <- match(taxa, turns_taxa$taxon)
-		taxinds <- taxinds[!is.na(taxinds)]
-		models <- turns_taxa[taxinds, ]
-		
+#	taxa.func <- taxaXfunc(func_groups = func_groups)	#list of taxa per functional group
+#	turns <- rates <- data.frame(matrix(NA, nrow = 0, ncol = 3))
+#	for(i in 1:length(taxa.func)){
+#		print(paste('Working on functional group', i, 'out of', length(taxa.func)))
+#		#Extract data
+#		taxa <- taxa.func[[i]]
+#		taxinds <- match(taxa, turns_taxa$taxon)
+#		taxinds <- taxinds[!is.na(taxinds)]
+#		models <- turns_taxa[taxinds, ]
+#		
 		#Construct CDFs
-		turnsCDF <- cdf(data = models$turn.point, x_range = c(0:100))
-		ratesCDF <- cdf(data = models$maxrate, x_range = c(0:100))
+#		turnsCDF <- cdf(data = models$turn.point, x_range = c(0:100))
+#		ratesCDF <- cdf(data = models$maxrate, x_range = c(0:100))
 		
 		#Breakpoints
-		turn_breaks <- try(plot.breaks(x = turnsCDF$x, y = turnsCDF$prop, add_plot = FALSE), silent = TRUE)
-		rate_breaks <- try(plot.breaks(x = ratesCDF$x, y = ratesCDF$prop, add_plot = FALSE), silent = TRUE)
+#		turn_breaks <- try(plot.breaks(x = turnsCDF$x, y = turnsCDF$prop, add_plot = FALSE), silent = TRUE)
+#		rate_breaks <- try(plot.breaks(x = ratesCDF$x, y = ratesCDF$prop, add_plot = FALSE), silent = TRUE)
 		
-		if(class(turn_breaks) != "try-error"){			
-			turns <- rbind(turns, turn_breaks)
-			}
-		if(class(rate_breaks) != "try-error"){			
-			rates <- rbind(rates, rate_breaks)
-			}
-		rm(turn_breaks, rate_breaks)
-		}
+#		if(class(turn_breaks) != "try-error"){			
+#			turns <- rbind(turns, turn_breaks)
+#			}
+#		if(class(rate_breaks) != "try-error"){			
+#			rates <- rbind(rates, rate_breaks)
+#			}
+#		rm(turn_breaks, rate_breaks)
+#		}
 	
-	return(list(turn.breaks = turns, rate.breaks = rates))
-	}
+#	return(list(turn.breaks = turns, rate.breaks = rates))
+#	}
 
 ###################################################################################
 ###################################################################################
