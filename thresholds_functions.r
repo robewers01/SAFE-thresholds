@@ -1,6 +1,7 @@
 
 require(lme4)
 require(pastecs)
+require(strucchange)
 
 
 #Function to align site x species matrix with lidar data
@@ -91,18 +92,23 @@ align.data.func <- function(func, func_survey, full_data, lidar, predictor, min.
 	for(k in 1:length(surveys)){		#For each of those surveys
 		target <- full_data[[match(surveys[k], names(full_data))]]
 		comm <- align.data(target$comm.out, lidar, predictor, min.obs = min.obs)	#Add lidar data
-
-
-		#Aggregate data across all relevant taxa
-		taxonind <- match(rownames(func_survey), names(comm))
-		taxonind <- taxonind[!is.na(taxonind)]
-		commB <- data.frame(rowSums(comm[, taxonind]))
-		commB[commB > 0] <- 1
-		names(commB) <- func
-		commC <- cbind(comm[ , 1:(length(predictor)+ 3)], commB)
-		rownames(commC) <- rownames(comm)
-		commC$survey <- surveys[k]
-		data.out <- rbind(data.out, commC)
+		
+		if(nrow(comm) > 0){
+			#Aggregate data across all relevant taxa
+			taxonind <- match(rownames(func_survey), names(comm))
+			taxonind <- taxonind[!is.na(taxonind)]
+			if(length(taxonind) == 1){
+				commB <- data.frame(comm[, taxonind])
+				}else{
+					commB <- data.frame(rowSums(comm[, taxonind]))
+					}
+			commB[commB > 0] <- 1
+			names(commB) <- func
+			commC <- cbind(comm[ , 1:(length(predictor)+ 3)], commB)
+			rownames(commC) <- rownames(comm)
+			commC$survey <- surveys[k]
+			data.out <- rbind(data.out, commC)
+			}
 		}
 	 return(data.out)
 	 }
@@ -300,14 +306,24 @@ fit.models <- function(full_data, func_data = NA, lidar, predictor, min.observs 
 			}else{
 				print(paste('fitting models to taxon', i, 'of', length(to.iterate), ':', to.iterate[i]))
 				longlist <- match(taxa.lists[[i]], rownames(taxa_survey))
-				shortlist <- longlist[!is.na(longlist)]
-				taxdat <- taxa_survey[shortlist, ]		#All taxa in here belong to that functional group
-				shorttaxa <- rownames(taxdat)
-				#Extract list of relevant datasets
-				funcdat <- taxdat[ , which(colSums(taxdat, na.rm = TRUE) > 0)]
-				comm_data = align.data.func(func = names(taxa.lists)[i], func_survey = funcdat, full_data = thresh.data,
-					lidar = lidar.data, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'), min.obs = 1)
-				taxon <- to.iterate[i]
+				if((length(longlist) == 1 & is.na(longlist[1])) | is.na(unique(longlist))){
+					comm_data <- NULL
+					}else{
+						shortlist <- longlist[!is.na(longlist)]
+						taxdat <- taxa_survey[shortlist, ]		#All taxa in here belong to that functional group
+						shorttaxa <- rownames(taxdat)
+						#Extract list of relevant datasets
+						colinds <- which(colSums(taxdat, na.rm = TRUE) > 0)
+						if(length(colinds) > 1){
+							funcdat <- taxdat[ , colinds]
+							}else{
+								funcdat <- as.data.frame(taxdat[ , colinds])
+								names(funcdat) <- names(colinds)
+								}
+						comm_data = align.data.func(func = names(taxa.lists)[i], func_survey = funcdat, full_data = thresh.data,
+							lidar = lidar.data, predictor = predictor, min.obs = 1)
+						taxon <- to.iterate[i]
+						}
 				}
 		
 			
@@ -362,15 +378,13 @@ fitted.vals <- function(predx = seq((-50), 150, 0.1), mod_coef){
 	mod_expr <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
 
 	#Calculate expressions for derivatives of the model
-	x_p <- D(mod_expr, 'predx')
-	x_pp <- D(x_p, 'predx')
-	x_ppp <- D(x_pp, 'predx')
+	x_p <- D(mod_expr, 'predx')	#First derivative
+	x_pp <- D(x_p, 'predx')		#Second derivative
 
-	#Predicted values for derivatives
+	#Predicted values
 	obs <- with(cf, eval(mod_expr))
 	d1.vals <- with(cf, eval(x_p))
 	d2.vals <- with(cf, eval(x_pp))
-	d3.vals <- with(cf, eval(x_ppp))
 	
 	#Combine for output
 	out <- data.frame(agb = predx, obs = obs, d1 = d1.vals, d2 = d2.vals)
@@ -391,9 +405,11 @@ root.finder <- function(fitted_vals){
 	 
 	x <- fitted_vals$fits$agb
 	y <- round(fitted_vals$fits$d2,8)
+	yD1 <- round(fitted_vals$fits$d1,8)
 	keep <- which(y != Inf & !is.na(y))
 	x <- x[keep]
 	y <- y[keep]
+	yD1 <- abs(yD1[keep])
 	
 	past <- NA
 	try(past <- turnpoints(y)$tp, silent = TRUE)
@@ -405,8 +421,24 @@ root.finder <- function(fitted_vals){
 			tps <- NA
 			peak <- NA
 			}
+	try(rate <- turnpoints(yD1)$tp, silent = TRUE)
+	if(!is.na(rate[1])){
+		maxrate <- x[rate]
+		#Constrain to fit within valid range of agb values
+		if(maxrate > 100) maxrate <- 100
+		if(maxrate < 0) maxrate <- 0
+		}else{
+			maxrate <- NA
+			if(yD1[1] > yD1[length(yD1)]){
+				maxrate <- 0
+				}
+			if(yD1[1] > yD1[length(yD1)]){
+				maxrate <- 100
+				}
+			}
+
 		
-	return(list(tps = tps, peak = peak, coefs = fitted_vals$coefs))		
+	return(list(tps = tps, peak = peak, maxrate = maxrate, coefs = fitted_vals$coefs))		
 	}
 
 ###################################################################################
@@ -449,6 +481,41 @@ extract.turns <- function(turns_estimate){
 ###################################################################################
 
 
+#Function to extract max rate of change
+extract.rate <- function(turns_estimate){
+	#turns_estimate = output from root.finder
+
+	obs.x.range <- as.numeric(c(turns_estimate$coefs[, 10:11]))
+	turnings <- turns_estimate$maxrate
+	
+	#If no turning point was detected:
+	if(is.na(turnings) & as.numeric(turns_estimate$coefs$pval) < 0.05){			
+		turnings <- 0	#Set turning points to be the min (because fitted model is significant)
+		}
+
+	#Check for turning points that fall outside range of valid AGB values
+	if(as.numeric(turns_estimate$coefs$slope) > 0){
+		if(!is.na(turns_estimate$peak) & turns_estimate$peak == FALSE) turnings <- 0		#Turning point returned has missed initial acceleration point
+		}
+	if(as.numeric(turns_estimate$coefs$slope) < 0){ 
+		if(!is.na(turns_estimate$peak) & turns_estimate$peak == TRUE) turnings <- 0		#Turning point returned has missed initial deceleration point
+		}
+
+	#Constrain to fit within valid range of agb values
+	if(turnings > 100) turnings <- 100
+	if(turnings < 0) turnings <- 0
+
+	#Generate weights for turning point estimates
+	if(turnings >= min(obs.x.range) & turnings <= max(obs.x.range)) turn.weight <- 1
+	if(turnings < min(obs.x.range)) turn.weight <- abs(1/(turnings-min(obs.x.range)))
+	if(turnings > max(obs.x.range)) turn.weight <- abs(1/(turnings-max(obs.x.range)))
+
+	return(list(turn.point = turnings, turn.weight = turn.weight))
+	}
+	
+###################################################################################
+###################################################################################
+
 
 #Function to estimate turning points for fitted models
 turns <- function(fitted_mod){
@@ -457,7 +524,7 @@ turns <- function(fitted_mod){
 	#Strip out taxa that weren't modelled
 	fitted_mod <- fitted_mod[!is.na(fitted_mod$modtype) , ]
 	
-	turnpoints <- matrix(NA, nrow = nrow(fitted_mod), ncol = 2)
+	turnpoints <- matrix(NA, nrow = nrow(fitted_mod), ncol = 3)
 	for(i in 1:nrow(fitted_mod)){			#For each fitted model....
 		print(paste('getting turning points for model', i, 'of', nrow(fitted_mod)))
 		#Check if fitted model was significant or not
@@ -466,11 +533,11 @@ turns <- function(fitted_mod){
 			fits <- fitted.vals(mod_coef = fitted_mod[i , ])		#Estimate fitted values and derivatives
 			turnings <- root.finder(fitted_vals = fits)
 			turnsdat <- unlist(extract.turns(turns_estimate = turnings))
-			turnpoints[i ,] <- turnsdat
+			turnpoints[i ,] <- c(turnsdat, turnings$maxrate)
 			}
 		}
 	out <- data.frame(cbind(fitted_mod, turnpoints))
-	names(out)[(ncol(out)-1):ncol(out)] <- c('turn.point', 'range.weight')
+	names(out)[(ncol(out)-2):ncol(out)] <- c('turn.point', 'range.weight', 'maxrate')
 	out[ , c(3:5, 7:13)] <- sapply(out[, c(3:5, 7:13)], as.numeric)
 	
 	return(out)
@@ -613,16 +680,14 @@ fitted.matrix <- function(models, predx = c(0:100)){
 	#models = output from call to fit.models
 	#predx = set of x-values to make predictions for
 
-	rates <- obs <- data.frame(matrix(NA, nrow = 101, ncol = nrow(models)))
-	for(i in 1:length(models)){
+	rates <- obs <- data.frame(matrix(NA, nrow = length(predx), ncol = nrow(models)))
+	for(i in 1:nrow(models)){
 		target <- models[i, ]
-		if(target$pval < 0.05){
-			fitted <- fitted.vals(predx = predx, mod_coef = target)$fits
-			rates[ , i] <- fitted$d1
-			obs[ , i] <- fitted$obs
-			}
+		fits <- fitted.vals(predx = predx, mod_coef = target)$fits
+		rates[ , i] <- fits$d1
+		obs[ , i] <- fits$obs
 		}
-	names(rates) <- names(obs) <- names(models)
+	names(rates) <- names(obs) <- models$taxon
 	rownames(rates) <- rownames(obs) <- predx
 	return(list(obs = obs, rates = rates))
 	}
@@ -737,9 +802,103 @@ taxaXfunc <- function(func_groups){
 ###################################################################################
 
 
+#Function to find breakpoints in curvilinear bivariate plots
+break.points <- function(x, y, ss = 10){
+	#x = vector of x-axis values
+	#y = vector of y-axis values
+	#ss = what fraction of observations to use when scanning for breakpoints? 
+		#This speeds up the fitting, but is only called if length(x) > 1000
 
+	if (!require(strucchange)) install.packages("strucchange") && require(strucchange)   ## Check if required packages are installed
 
-
-
-
+	dat = data.frame(x = x, y = y)
 	
+	#Subset every ss'th observations 
+	if(length(x) > 1000){
+		data = dat[c(seq(1, nrow(dat), ss)), ]
+		}else{
+			data = dat}
+	
+	#Find breakpoints
+	bp <- breakpoints(data$y ~ data$x)
+	d <- coef(bp)[, 2]
+	#Record breakpoints
+	bps<-data$x[bp$breakpoints]
+	bps.y<-data$y[bp$breakpoints]
+	
+	#Classify into acceleration vs deceleration
+	rate <- rep(NA, length(bps))
+	rate[which(diff(d) > 0)] <- 'accelerate'
+	rate[which(diff(d) < 0)] <- 'decelerate'
+
+	out <- data.frame(bps = bps, bps.y = bps.y, type = rate)
+	return(out)
+	
+	}
+	
+###################################################################################
+###################################################################################
+
+
+#Function to calculate and add breakpoints to figure
+plot.breaks <- function(x, y, add_plot = TRUE, ...){
+	#x = x values
+	#y = y values
+	#add_plot = binary; add breakpoints to open plot or not?
+	#... = parameters passed to plot function
+	
+	bp <- break.points(x = x, y = y)
+	pt.col <- rep('white', nrow(bp))
+		pt.col[bp$type == 'decelerate'] <- alpha(pal[3], 1)
+#	for(i in 1:nrow(bp)){
+#		arrows(bp$bps[i], bp$bps.y[i], bp$bps[i], -1, col = alpha(pal[3], 0.4), code = 0, lwd = 2, lty = 2)
+#		}
+	if(add_plot) points(bp$bps, bp$bps.y, bg = alpha(pt.col, 0.8), ...)
+	return(bp)
+	}
+
+###################################################################################
+###################################################################################
+
+
+#Function to extract thresholds per functional group
+func.thresholds <- function(func_groups, turns_taxa){
+	#func_groups = functional traits data
+	#turns_taxa = output from call to turns that used individual taxa
+
+	taxa.func <- taxaXfunc(func_groups = func_groups)	#list of taxa per functional group
+	turns <- rates <- data.frame(matrix(NA, nrow = 0, ncol = 3))
+	for(i in 1:length(taxa.func)){
+		print(paste('Working on functional group', i, 'out of', length(taxa.func)))
+		#Extract data
+		taxa <- taxa.func[[i]]
+		taxinds <- match(taxa, turns_taxa$taxon)
+		taxinds <- taxinds[!is.na(taxinds)]
+		models <- turns_taxa[taxinds, ]
+		
+		#Construct CDFs
+		turnsCDF <- cdf(data = models$turn.point, x_range = c(0:100))
+		ratesCDF <- cdf(data = models$maxrate, x_range = c(0:100))
+		
+		#Breakpoints
+		turn_breaks <- try(plot.breaks(x = turnsCDF$x, y = turnsCDF$prop, add_plot = FALSE), silent = TRUE)
+		rate_breaks <- try(plot.breaks(x = ratesCDF$x, y = ratesCDF$prop, add_plot = FALSE), silent = TRUE)
+		
+		if(class(turn_breaks) != "try-error"){			
+			turns <- rbind(turns, turn_breaks)
+			}
+		if(class(rate_breaks) != "try-error"){			
+			rates <- rbind(rates, rate_breaks)
+			}
+		rm(turn_breaks, rate_breaks)
+		}
+	
+	return(list(turn.breaks = turns, rate.breaks = rates))
+	}
+
+###################################################################################
+###################################################################################
+
+
+
+

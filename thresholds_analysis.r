@@ -16,13 +16,21 @@
 #	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
 #		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
 #		saveRDS(fitted_thresh, 'results/fitted_thresh.rds')
+#	fitted_func <- fit.models(full_data = thresh.data, func_data = func.groups, lidar = lidar.data,
+#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'), min.observs = 5)
+#	saveRDS(fitted_func, 'results/fitted_func.rds')
 #	turn_points <- turns(fitted_mod = fitted_thresh)
 #		saveRDS(turn_points, 'results/turn_points.rds')
+#	func_points <- turns(fitted_mod = fitted_func)
+#		saveRDS(func_points, 'results/func_points.rds')
 
 #Read in pre-calculated versions
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
 		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$num.occs), ]	#Remove taxa that weren't found for analyses
+	fitted_func <- readRDS('results/fitted_func.rds')
+		fitted_func <- fitted_func[!is.na(fitted_func$num.occs), ]	#Remove taxa that weren't found for analyses
 	turn_points <- readRDS('results/turn_points.rds')
+	func_points <- readRDS('results/func_points.rds')
 
 	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ])
 
@@ -55,17 +63,56 @@
 
 
 
-#Function to aggregate data by functional group
-full_data = thresh.data
+#For each functional group
+#A. impact on occurrence
+	#extract turning points and fit CDF
+	#get breakpoints in the CDF
+
+#B. impact on rate of change
+	#get location of maximum rate of change (=max 1st derivative)
+	#fit CDF to max rate of change
+	#get breakpoints in the CDF
+
+
+
+#Function to extract thresholds per functional group
+turns_taxa = turn_points
 func_groups = func.groups
-predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000')
-min.observs = 5
-lidar = lidar.data
 
 
+func.thresholds <- function(func_groups, turns_taxa){
+	#func_groups = functional traits data
+	#turns_taxa = output from call to turns that used individual taxa
+
+	taxa.func <- taxaXfunc(func_groups = func_groups)	#list of taxa per functional group
+	turns <- rates <- data.frame(matrix(NA, nrow = 0, ncol = 3))
+	for(i in 1:100){#length(taxa.func){
+		print(paste('Working on functional group', i, 'out of', length(taxa.func)))
+		#Extract data
+		taxa <- taxa.func[[i]]
+		taxinds <- match(taxa, turns_taxa$taxon)
+		taxinds <- taxinds[!is.na(taxinds)]
+		models <- turns_taxa[taxinds, ]
+		
+		#Construct CDFs
+		turnsCDF <- cdf(data = models$turn.point, x_range = c(0:100))
+		ratesCDF <- cdf(data = models$maxrate, x_range = c(0:100))
+		
+		#Breakpoints
+		turn_breaks <- try(plot.breaks(x = turnsCDF$x, y = turnsCDF$prop, add_plot = FALSE), silent = TRUE)
+		rate_breaks <- try(plot.breaks(x = ratesCDF$x, y = ratesCDF$prop, add_plot = FALSE), silent = TRUE)
+		
+		if(class(turn_breaks) != "try-error"){			
+			turns <- rbind(turns, turn_breaks)
+			}
+		if(class(rate_breaks) != "try-error"){			
+			rates <- rbind(rates, rate_breaks)
+			}
+		rm(turn_breaks, rate_breaks)
+		}
 	
-fitted_func <- fit.models(full_data =thresh.data, func_data = func.groups, lidar = lidar.data,
-	predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'), min.observs = 5)
+	return(list(turn.breaks = turns, rate.breaks = rates))
+	}
 
 
 
