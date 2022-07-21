@@ -288,7 +288,7 @@ fit.models <- function(full_data, func_data = NA, lidar, predictor, min.observs 
 	to.iterate <- 1:nrow(taxa_survey)
 	#Extract list of taxa belonging to each functional group
 	if(is.data.frame(func_data)){
-		taxa.lists <- taxaXfunc(func_groups = func.groups)
+		taxa.lists <- taxaXfunc(func_groups = func.groups)$taxon.lists
 		to.iterate <- names(taxa.lists)
 		}
 
@@ -370,7 +370,7 @@ fit.models <- function(full_data, func_data = NA, lidar, predictor, min.observs 
 ###################################################################################
 
 #Function to calculate predicted values and derivatives
-fitted.vals <- function(predx = seq((-50), 150, 0.1), mod_coef){
+fitted.vals <- function(predx = seq(-1000, 1000, 1), mod_coef){
 	#predx = x values for which to return fitted values
 	#mod_coef = summary model information (passed for follow-up functions)
 
@@ -432,7 +432,7 @@ root.finder <- function(fitted_vals){
 			if(yD1[1] > yD1[length(yD1)]){
 				maxrate <- 0
 				}
-			if(yD1[1] > yD1[length(yD1)]){
+			if(yD1[1] < yD1[length(yD1)]){
 				maxrate <- 100
 				}
 			}
@@ -481,41 +481,7 @@ extract.turns <- function(turns_estimate){
 ###################################################################################
 
 
-#Function to extract max rate of change
-extract.rate <- function(turns_estimate){
-	#turns_estimate = output from root.finder
-
-	obs.x.range <- as.numeric(c(turns_estimate$coefs[, 10:11]))
-	turnings <- turns_estimate$maxrate
 	
-	#If no turning point was detected:
-	if(is.na(turnings) & as.numeric(turns_estimate$coefs$pval) < 0.05){			
-		turnings <- 0	#Set turning points to be the min (because fitted model is significant)
-		}
-
-	#Check for turning points that fall outside range of valid AGB values
-	if(as.numeric(turns_estimate$coefs$slope) > 0){
-		if(!is.na(turns_estimate$peak) & turns_estimate$peak == FALSE) turnings <- 0		#Turning point returned has missed initial acceleration point
-		}
-	if(as.numeric(turns_estimate$coefs$slope) < 0){ 
-		if(!is.na(turns_estimate$peak) & turns_estimate$peak == TRUE) turnings <- 0		#Turning point returned has missed initial deceleration point
-		}
-
-	#Constrain to fit within valid range of agb values
-	if(turnings > 100) turnings <- 100
-	if(turnings < 0) turnings <- 0
-
-	#Generate weights for turning point estimates
-	if(turnings >= min(obs.x.range) & turnings <= max(obs.x.range)) turn.weight <- 1
-	if(turnings < min(obs.x.range)) turn.weight <- abs(1/(turnings-min(obs.x.range)))
-	if(turnings > max(obs.x.range)) turn.weight <- abs(1/(turnings-max(obs.x.range)))
-
-	return(list(turn.point = turnings, turn.weight = turn.weight))
-	}
-	
-###################################################################################
-###################################################################################
-
 
 #Function to estimate turning points for fitted models
 turns <- function(fitted_mod){
@@ -748,7 +714,6 @@ taxon.dataset <- function(full_data){
 ###################################################################################
 
 
-
 #Function to extract lists of taxa belonging to all functional groups
 taxaXfunc <- function(func_groups){
 	#func_groups = functional traits data
@@ -756,26 +721,16 @@ taxaXfunc <- function(func_groups){
 	func_groups <- func_groups[!is.na(func_groups$taxon_name), ]
 	taxon.names <- unique(func_groups$taxon_name)
 	func_groups <- as.data.frame(func_groups[match(taxon.names, func_groups$taxon_name), ])
+	
 	#Generate vector of functional groups
-	groups.list <- names(func_groups)#[13:ncol(func_groups)]
-	#Exclude numeric traits (these have all been categorised and are captured in other fiels)
-	num.col <- NULL
-	for(k in 1:ncol(func_groups)){
-		num.col <- c(num.col, is.numeric(func_groups[, k]))
-		}
-	groups <- groups.list[!num.col]
-	#Exclude unnecessary taxonomic information
-	groups <- groups[-c(1:3,7:12)]
-	#Aggregate groups split by TaxonType
-	groups.agg <- gsub('_.+', '', groups)
-	groups.unique <- unique(groups.agg)
+	groups <- extract.func(func_groups)
+	groups.unique <- groups$group
 	
 	#Extract taxon list
 	out.list <- list()
 	for(i in 1:length(groups.unique)){		#For each grouping factor
 		target.group <- groups.unique[i]
-		target.names <- groups[which(groups.agg == target.group)]
-		target.func <- as.data.frame(func_groups[ , match(target.names, names(func_groups))])
+		target.func <- as.data.frame(func_groups[ , match(target.group, names(func_groups))])
 		rownames(target.func) <- rownames(func_groups)
 	#		#Remove duplicates and rename rows by taxon_name
 	#		taxon.names <- unique(func_groups$taxon_name)
@@ -795,7 +750,93 @@ taxaXfunc <- function(func_groups){
 			}
 		}
 	
-	return(out.list)
+	return(list(taxon.lists = out.list, functional.groups = groups))
+	}
+
+###################################################################################
+###################################################################################
+
+
+#Function to pull out relevant functional groups for analysis
+extract.func <- function(func_groups){
+	#func_groups = functional traits data
+
+	#Exclude numeric traits (these have all been categorised and are captured in other fiels)
+	num.col <- NULL
+	for(k in 1:ncol(func_groups)){
+		num.col <- c(num.col, is.numeric(func_groups[, k]))
+		}
+	groups <- groups.list[!num.col]
+	#Exclude unnecessary taxonomic information
+	groups <- groups[-c(1:12,15)]
+	
+	to.retain <- NULL	#Vector to store indices to desired groups
+	func.categ <- NULL	#Vector to record broad categories of groups
+	#Body mass by taxon
+	to.retain <- c(to.retain, grep('BodyMass', groups))
+	func.categ <- rep('Body mass', length(to.retain))
+	#Movement by taxon
+	movement <- grep('Movement', groups)
+	to.retain <- c(to.retain, movement)
+	func.categ <- c(func.categ, rep('Movement', length(movement)))
+	#Strata types by taxon
+	strata <- grep('Stra', groups)
+		#Exclusions
+		exclusions <- NULL
+		#Exclude life history variation
+		exclusions <- c(exclusions, grep('StraLifeHist', groups))
+		#Exclude generalism index
+		exclusions <- c(exclusions, grep('StrataGeneralism', groups))
+	to.retain <- c(to.retain, strata[is.na(match(strata, exclusions))])
+	func.categ <- c(func.categ, rep('Habitat strata', length(strata[is.na(match(strata, exclusions))])))
+	#Strata life history variation
+	slh <- grep('StraLifeHist', groups)
+	to.retain <- c(to.retain, slh[-grep('_', groups[slh])])
+	func.categ <- c(func.categ, rep('Habitat strata', length(slh[-grep('_', groups[slh])])))
+	#Strata generalism
+	sg <- grep('StrataGeneralism', groups)
+	to.retain <- c(to.retain, sg[1])
+	func.categ <- c(func.categ, rep('Habitat strata', length(sg[1])))
+	#IUCNthreat and RedList
+	iucn <- grep('IUCN', groups)
+	to.retain <- c(to.retain, iucn[-grep('_', groups[iucn])])
+	func.categ <- c(func.categ, rep('Red List status', length(iucn[-grep('_', groups[iucn])])))
+	#Development
+	dev <- grep('Development', groups)
+	to.retain <- c(to.retain, dev[-grep('_', groups[dev])])
+	func.categ <- c(func.categ, rep('Development', length(dev[-grep('_', groups[dev])])))
+	#Physiology
+	phys <- grep('Physiology', groups)
+	to.retain <- c(to.retain, phys[-grep('_', groups[phys])])
+	func.categ <- c(func.categ, rep('Physiology', length(phys[-grep('_', groups[phys])])))
+	#Sociality
+	social <- grep('Sociality', groups)
+	to.retain <- c(to.retain, social[-grep('_', groups[social])])
+	func.categ <- c(func.categ, rep('Sociality', length(social[-grep('_', groups[social])])))
+	#Trophic
+	trophic <- grep('Troph', groups)
+	to.retain <- c(to.retain, trophic[-grep('_', groups[trophic])])
+	func.categ <- c(func.categ, rep('Trophic', length(trophic[-grep('_', groups[trophic])])))
+	#Trophic generalism
+	tg <- grep('TrophicGen', groups)
+	to.retain <- c(to.retain, tg[1])
+	func.categ <- c(func.categ, rep('Trophic', length(tg[1])))
+	#Diet
+	diet <- grep('Diet', groups)
+	to.retain <- c(to.retain, diet[-grep('_', groups[diet])])
+	func.categ <- c(func.categ, rep('Diet', length(diet[-grep('_', groups[diet])])))
+	#Diet generalism
+	dg <- grep('DietGen', groups)
+	to.retain <- c(to.retain, dg[1])
+	func.categ <- c(func.categ, rep('Trophic', length(dg[1])))
+	#Plants
+	plant <- grep('Plant', groups)
+	to.retain <- c(to.retain, plant[-grep('_plant', groups[plant])])
+	func.categ <- c(func.categ, rep('Plant', length(plant[-grep('_plant', groups[plant])])))
+	
+	out <- data.frame(group = groups[to.retain], category = func.categ)
+	
+	return(out)
 	}
 
 ###################################################################################

@@ -47,7 +47,7 @@ png('figures/fig1.png', width = 800, height = 800)
 	{
 		#Taxa
 		plot(ecdf_out$x, ecdf_out$prop, type = "l", lwd = 5 , col = pal[4],
-			ylim = c(0,0.6), 
+			ylim = c(0,0.8), 
 			xlim = c(0, 100), ylab = '', 
 			xlab = '', cex.lab = 2.5, cex.axis = 2)
 		#Functional groups
@@ -57,7 +57,7 @@ png('figures/fig1.png', width = 800, height = 800)
 	#	plot.breaks(x = ecdf_out$x, y = ecdf_out$prop, pch = 21, cex = 5, lwd = 2 )
 	#	plot.breaks(ecdf_func$x, ecdf_func$prop, pch = 21, cex = 5, lwd = 2 )
 		
-		legend('bottomleft', legend = c('taxa', 'groups'), 
+		legend('bottomleft', legend = c('taxa', 'functional groups'), 
 			pch = c(22,22),
 			pt.bg = c(alpha(pal[4], 0.3), alpha(pal[1],0.3)),
 			col = c(pal[4], pal[1]), 
@@ -71,7 +71,7 @@ png('figures/fig1.png', width = 800, height = 800)
 #			text.col=c(pal[4], pal[1], 1, pal[3]),
 #			cex = 2, pt.cex = 4, lty = 0, bty = 'n', lwd = 2)
 		
-		text(x = 0, y = 0.58, labels = c('(A) Cumulative impact'), cex = 2, pos = 4)
+		text(x = 0, y = 0.78, labels = c('(A) Cumulative impact'), cex = 2, pos = 4)
 		mtext('Proportion of taxa', side = 2, line = 4, cex = 2)
 		mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
 	}
@@ -81,19 +81,27 @@ png('figures/fig1.png', width = 800, height = 800)
 		plot(0,0, xlim = c(0,100), ylim = c(0,1), col = 'white', 
 			xlab = '', ylab = '',  cex.lab = 2.5, cex.axis = 2)
 
+		#Individual fits
+		for(i in 1:ncol(model_fits$obs)){
+			lines(x = xvals, y = model_fits$obs[,i], col = alpha('grey', 0.2))
+			}
+		for(i in 1:ncol(func_fits$obs)){
+			lines(x = xvals, y = func_fits$obs[,i], col = alpha('grey', 0.2))
+			}
+		
 		#Taxa
 		taxon_occ <- apply(model_fits$obs, MARGIN = 1, FUN = mean, na.rm = TRUE)
 		lines(xvals, taxon_occ, lwd=5, col = pal[4])
-		confints <- apply(model_fits$obs, MARGIN = 1, FUN = quantile, probs = c(0.025, 0.975), na.rm = TRUE)
-		polygon(x = c(xvals, rev(xvals)), y = c(confints[1,], rev(confints[2,])),
-			col = alpha(pal[4], 0.3))
+	#	confints <- apply(model_fits$obs, MARGIN = 1, FUN = quantile, probs = c(0.025, 0.975), na.rm = TRUE)
+	#	polygon(x = c(xvals, rev(xvals)), y = c(confints[1,], rev(confints[2,])),
+	#		col = alpha(pal[4], 0.3))
 
 		#Functional groups
 		func_occ <- apply(func_fits$obs, MARGIN = 1, FUN = mean, na.rm = TRUE)
 		lines(xvals, func_occ, lwd=5, col = pal[1])
-		confints <- apply(func_fits$obs, MARGIN = 1, FUN = quantile, probs = c(0.025, 0.975), na.rm = TRUE)
-		polygon(x = c(xvals, rev(xvals)), y = c(confints[1,], rev(confints[2,])),
-			col = alpha(pal[1], 0.3))
+	#	confints <- apply(func_fits$obs, MARGIN = 1, FUN = quantile, probs = c(0.025, 0.975), na.rm = TRUE)
+	#	polygon(x = c(xvals, rev(xvals)), y = c(confints[1,], rev(confints[2,])),
+	#		col = alpha(pal[1], 0.3))
 
 		#Thresholds
 	#	plot.breaks(x = xvals, y = taxon_occ, pch = 21, cex = 5, lwd = 2 )
@@ -123,6 +131,7 @@ png('figures/fig1.png', width = 800, height = 800)
 	}
 	
 	#Panel D: rates of change density
+	{
 	#par(mai = c(0.8, 0.8, 0.3, 0.3))
 	#par(oma = c(2, 2, 0, 0))
 		#Taxa
@@ -135,10 +144,10 @@ png('figures/fig1.png', width = 800, height = 800)
 		polygon(density(func_rate), col = alpha(pal[1], 0.3), angle = -45, 
 			border = pal[1], lwd = 5)
 	
-		text(x = 0, y = 0.029, labels = c('(D) Rates of change'), cex = 2, pos = 4)
+		text(x = 0, y = 0.029, labels = c('(D) Peak change points'), cex = 2, pos = 4)
 		mtext('Density', side = 2, line = 4, cex = 2)
 		mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
-	
+	}
 	
 	
 	}
@@ -146,14 +155,55 @@ png('figures/fig1.png', width = 800, height = 800)
 		
 	
 
+##FIGURE - FUNCTIONAL THRESHOLDS
+	#* Use line type for positive/negative
+	#* Use colour for different types of functions - diet vs plants vs physiology vs strata vs...
 
+	pal <- paletteer_d("ggthemes::excel_Aspect")
 	
+	funcs <- func_points[!is.na(func_points$turn.point) ,]
+	funcs <- funcs[order(funcs$turn.point, funcs$maxrate), ]
+	funcs$col <- pal[2]
+	funcs$col[funcs$slope < 0] <- pal[3]
+	funcs$lty <- 1
+	funcs$lty[funcs$slope < 0] <- 2
+	plot(0,0, xlim = c(-20,100), ylim = c(1, nrow(funcs)), col = 'white', 
+		xlab = '', ylab = '',  yaxt = 'n', cex.lab = 2.5, cex.axis = 2)
+
+	for(i in 1:nrow(funcs)){
+		points(x = funcs$turn.point[i], y = i, pch = 21, col = funcs$col[i], lty = funcs$lty[i])
+		if(!is.na(funcs$maxrate[i]) & !(funcs$maxrate[i] == 100 & funcs$turn.point[i] == 100)){
+			points(x = funcs$maxrate[i], y = i, pch = 19, col = funcs$col[i], lty = funcs$lty[i])
+			lines(x = c(funcs$turn.point[i], funcs$maxrate[i]), y = rep(i,2), col = funcs$col[i], lty = funcs$lty[i])
+			}
+		text(x = 0, y = i, funcs$taxon[i], cex = 0.5, adj = c(1, 0.5))
+		}
 	
+	legend('bottomright', legend = c('turning point', 'maximum rate', 'increasing', 'decreasing'), 
+		pch = c(21,19, NA, NA),
+		pt.bg = c('white', 1, 'white', 'white'),
+		col = c(1, 1, pal[2], pal[3]), 
+		text.col=c(1, 1, pal[2], pal[3]),
+		lty = c(0,0,1,2),
+		cex = 1.5, pt.cex = 3,  bty = 'n', lwd = 2)
 
 
 
+##FIGURE - TAXON THRESHOLDS
+	
+	taxa <- turn_points$dataset[!is.na(turn_points$dataset$turn.point) ,]
+	taxa <- taxa[order(taxa$TaxonType, taxa$turn.point, taxa$maxrate),]
+	plot(0,0, xlim = c(0,100), ylim = c(1, nrow(taxa)), col = 'white', 
+		xlab = '', ylab = '',  yaxt = 'n', cex.lab = 2.5, cex.axis = 2)
 
-
+	for(i in 1:nrow(taxa)){
+		points(x = taxa$turn.point[i], y = i, pch = 21, col = as.numeric(taxa$TaxonType[i]))
+		if(!is.na(taxa$maxrate[i])){
+			lines(x = c(taxa$turn.point[i], taxa$maxrate[i]), y = rep(i,2), col = as.numeric(taxa$TaxonType[i]))
+			points(x = taxa$maxrate[i], y = i, pch = 19, col = as.numeric(taxa$TaxonType[i]))
+			}
+		}
+	
 
 
 

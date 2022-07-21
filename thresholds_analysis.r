@@ -74,15 +74,10 @@
 
 
 
-#For each functional group
-#A. impact on occurrence
-	#extract turning points and fit CDF
-	#get breakpoints in the CDF
 
-#B. impact on rate of change
-	#get location of maximum rate of change (=max 1st derivative)
-	#fit CDF to max rate of change
-	#get breakpoints in the CDF
+
+
+
 
 
 
