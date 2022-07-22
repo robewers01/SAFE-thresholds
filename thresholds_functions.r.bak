@@ -1,7 +1,7 @@
 
 require(lme4)
 require(pastecs)
-require(strucchange)
+#require(strucchange)
 
 
 #Function to align site x species matrix with lidar data
@@ -306,7 +306,7 @@ fit.models <- function(full_data, func_data = NA, lidar, predictor, min.observs 
 			}else{
 				print(paste('fitting models to taxon', i, 'of', length(to.iterate), ':', to.iterate[i]))
 				longlist <- match(taxa.lists[[i]], rownames(taxa_survey))
-				if((length(longlist) == 1 & is.na(longlist[1])) | is.na(unique(longlist))){
+				if(length(longlist) == 1 & is.na(longlist[1])){
 					comm_data <- NULL
 					}else{
 						shortlist <- longlist[!is.na(longlist)]
@@ -756,38 +756,52 @@ taxaXfunc <- function(func_groups){
 ###################################################################################
 ###################################################################################
 
+
 #Function to pull out relevant functional groups for analysis
 extract.func <- function(func_groups){
 	#func_groups = functional traits data
 
+	groups <- names(func_groups)
 	#Exclude numeric traits (these have all been categorised and are captured in other fiels)
 	num.col <- NULL
 	for(k in 1:ncol(func_groups)){
 		num.col <- c(num.col, is.numeric(func_groups[, k]))
 		}
-	groups <- groups.list[!num.col]
+	groups <- groups[!num.col]
 	#Exclude unnecessary taxonomic information
 	groups <- groups[-c(1:12,15)]
 	
 	to.retain <- NULL	#Vector to store indices to desired groups
 	func.categ <- NULL	#Vector to record broad categories of groups
+	keeps <- grep('_', groups)
+	exclude.alltaxa <- (1:length(groups))[-keeps]	#functional groups relating to all taxa
 	#Body mass by taxon
 	to.retain <- c(to.retain, grep('BodyMass', groups))
+		#Exclusions
+		exclusions <- exclude.alltaxa
+		exclusions <- c(exclusions, which(groups == 'BodyMass_Categorised'))
+	to.retain <- to.retain[is.na(match(to.retain, exclusions))]
+	to.retain <- c(to.retain, to.retain)
 	func.categ <- rep('Body mass', length(to.retain))
 	#Movement by taxon
 	movement <- grep('Movement', groups)
+		#Exclusions
+		exclusions <- exclude.alltaxa
+	movement <- movement[is.na(match(movement, exclusions))]
 	to.retain <- c(to.retain, movement)
 	func.categ <- c(func.categ, rep('Movement', length(movement)))
 	#Strata types by taxon
 	strata <- grep('Stra', groups)
 		#Exclusions
-		exclusions <- NULL
+		exclusions <- exclude.alltaxa
+		#Exclude all taxa types combined
 		#Exclude life history variation
 		exclusions <- c(exclusions, grep('StraLifeHist', groups))
 		#Exclude generalism index
 		exclusions <- c(exclusions, grep('StrataGeneralism', groups))
-	to.retain <- c(to.retain, strata[is.na(match(strata, exclusions))])
-	func.categ <- c(func.categ, rep('Habitat strata', length(strata[is.na(match(strata, exclusions))])))
+	strata <- strata[is.na(match(strata, exclusions))]
+	to.retain <- c(to.retain, strata)
+	func.categ <- c(func.categ, rep('Habitat strata', length(strata)))
 	#Strata life history variation
 	slh <- grep('StraLifeHist', groups)
 	to.retain <- c(to.retain, slh[-grep('_', groups[slh])])
@@ -834,11 +848,75 @@ extract.func <- function(func_groups){
 	func.categ <- c(func.categ, rep('Plant', length(plant[-grep('_plant', groups[plant])])))
 	
 	out <- data.frame(group = groups[to.retain], category = func.categ)
+	#Remove generic vertebrate group
+	out <- out[-grep('vertebrate', out$group), ]
+	#Add taxon column
+	out$taxon <- 'all taxa'
+	out$taxon[grep('bird', out$group)] <- 'bird'
+	out$taxon[grep('invert', out$group)] <- 'invertebrate'
+	out$taxon[grep('amphibian', out$group)] <- 'amphibian'
+	out$taxon[grep('reptile', out$group)] <- 'reptile'
+	out$taxon[grep('mammal', out$group)] <- 'mammal'
+	out$taxon[grep('plant', out$group)] <- 'plant'
+	out$taxon[grep('fish', out$group)] <- 'fish'
 	
 	return(out)
 	}
 
+###################################################################################
+###################################################################################
 
+
+#	func_points <- readRDS('results/func_points.rds')
+#	func_grousp = func.groups
+
+#Function to categorise and name functional groups
+rename.funcs <- function(func_groups, func_points){
+		#func_groups = functional groups data
+		#func_points = output from turns applied to functional groups
+		
+	newfuncs <- func_points
+	funcs <- extract.func(func_groups)
+	
+	
+	aligned <- sapply(funcs$group, grep, func_points$taxon, value = TRUE)
+	aligned.data <- data.frame(matrix(NA, nrow = 0, ncol = 2))
+	for(i in 1:length(aligned)){
+		full <- aligned[[i]]
+		short <- rep(names(aligned)[i], length(full))
+		new <- cbind(full, short)
+		aligned.data <- rbind(aligned.data, new)
+		}
+	aligned.data$TaxType <- funcs$taxon[match(aligned.data$short, funcs$group)]
+	aligned.data$TaxType[grep('Plant', aligned.data$full)] <- 'plant'
+	aligned.data$category <- funcs$category[match(aligned.data$short, funcs$group)]
+
+	newfuncs$shortname <- aligned.data$short[match(newfuncs$taxon, aligned.data$full)]
+	newfuncs$TaxType <- aligned.data$TaxType[match(newfuncs$taxon, aligned.data$full)]
+	newfuncs$category <- aligned.data$category[match(newfuncs$taxon, aligned.data$full)]
+
+	qualifier <- gsub('.*_Categorised_', '' , newfuncs$taxon)
+	qualifier <- gsub('Diet.*_', '' , qualifier)
+	qualifier <- gsub('Troph.*_', '' , qualifier)
+	qualifier <- gsub('Sociality.*_', '' , qualifier)
+	qualifier <- gsub('IUCN.*_', '' , qualifier)
+	qualifier <- gsub('Stra.*_', '' , qualifier)
+	qualifier <- gsub('Develo.*_', '' , qualifier)
+	qualifier <- gsub('Physio.*_', '' , qualifier)
+	qualifier <- gsub('Movem.*_', '' , qualifier)
+	newfuncs$qualifier = qualifier
+
+	newfuncs$plotname <- gsub('_.*', '' , newfuncs$shortname)
+	newfuncs$plotname <- gsub('Plant', '' , newfuncs$plotname)
+	
+	newfuncs$fullname <- paste(newfuncs$category, newfuncs$qualifier, newfuncs$TaxType, sep = '-')
+	newfuncs$description <- paste(newfuncs$category, newfuncs$qualifier, sep = '-')
+	
+	return(newfuncs)
+	}
+
+###################################################################################
+###################################################################################
 
 
 

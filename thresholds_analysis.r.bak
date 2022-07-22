@@ -38,13 +38,6 @@
 
 	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ])
 
-#Exclude taxonomic groups from functional groups
-	taxongroupsA <- c(grep('order', fitted_func$taxon), grep('family', fitted_func$taxon), grep('genus', fitted_func$taxon))
-	fitted_func <- fitted_func[-taxongroupsA,]
-	taxongroupsB <- c(grep('order', func_points$taxon), grep('family', func_points$taxon), grep('genus', func_points$taxon))
-	func_points <- func_points[-taxongroupsB,]
-
-
 #Summary data
 	#Number of surveys
 		length(thresh.data)
@@ -74,113 +67,7 @@
 
 
 
-#Functional groups
-groups <- names(func.groups)
-taxongroups <- c(grep('order', groups), grep('family', groups), grep('genus', groups))
-groups <- groups[-taxongroups]
 
-#To split by taxontype
-TaxonType
-BodyMass
-Movement - vertebrate vs invertebrate
-Strata - understory, aquatic, aerial, arborial, terrestrial, subterranean
-
-#To be agnostic to taxontype
-IUCNthreat
-Development
-Physiology
-Sociality
-StraLifeHist
-Strata generalism
-Trophic - carnivore, herbivore, producer, saprovore, parasitoid, parasite
-Trophic generalism
-Diet - x21 categories
-Diet generalism
-Plants - wood density, ruderal, stress, competitive, photsynthetic capacity
-
-
-
-#Function to pull out relevant functional groups for analysis
-extract.func <- function(func_groups){
-	#func_groups = functional traits data
-
-	#Exclude numeric traits (these have all been categorised and are captured in other fiels)
-	num.col <- NULL
-	for(k in 1:ncol(func_groups)){
-		num.col <- c(num.col, is.numeric(func_groups[, k]))
-		}
-	groups <- groups.list[!num.col]
-	#Exclude unnecessary taxonomic information
-	groups <- groups[-c(1:12,15)]
-	
-	to.retain <- NULL	#Vector to store indices to desired groups
-	func.categ <- NULL	#Vector to record broad categories of groups
-	#Body mass by taxon
-	to.retain <- c(to.retain, grep('BodyMass', groups))
-	func.categ <- rep('Body mass', length(to.retain))
-	#Movement by taxon
-	movement <- grep('Movement', groups)
-	to.retain <- c(to.retain, movement)
-	func.categ <- c(func.categ, rep('Movement', length(movement)))
-	#Strata types by taxon
-	strata <- grep('Stra', groups)
-		#Exclusions
-		exclusions <- NULL
-		#Exclude life history variation
-		exclusions <- c(exclusions, grep('StraLifeHist', groups))
-		#Exclude generalism index
-		exclusions <- c(exclusions, grep('StrataGeneralism', groups))
-	to.retain <- c(to.retain, strata[is.na(match(strata, exclusions))])
-	func.categ <- c(func.categ, rep('Habitat strata', length(strata[is.na(match(strata, exclusions))])))
-	#Strata life history variation
-	slh <- grep('StraLifeHist', groups)
-	to.retain <- c(to.retain, slh[-grep('_', groups[slh])])
-	func.categ <- c(func.categ, rep('Habitat strata', length(slh[-grep('_', groups[slh])])))
-	#Strata generalism
-	sg <- grep('StrataGeneralism', groups)
-	to.retain <- c(to.retain, sg[1])
-	func.categ <- c(func.categ, rep('Habitat strata', length(sg[1])))
-	#IUCNthreat and RedList
-	iucn <- grep('IUCN', groups)
-	to.retain <- c(to.retain, iucn[-grep('_', groups[iucn])])
-	func.categ <- c(func.categ, rep('Red List status', length(iucn[-grep('_', groups[iucn])])))
-	#Development
-	dev <- grep('Development', groups)
-	to.retain <- c(to.retain, dev[-grep('_', groups[dev])])
-	func.categ <- c(func.categ, rep('Development', length(dev[-grep('_', groups[dev])])))
-	#Physiology
-	phys <- grep('Physiology', groups)
-	to.retain <- c(to.retain, phys[-grep('_', groups[phys])])
-	func.categ <- c(func.categ, rep('Physiology', length(phys[-grep('_', groups[phys])])))
-	#Sociality
-	social <- grep('Sociality', groups)
-	to.retain <- c(to.retain, social[-grep('_', groups[social])])
-	func.categ <- c(func.categ, rep('Sociality', length(social[-grep('_', groups[social])])))
-	#Trophic
-	trophic <- grep('Troph', groups)
-	to.retain <- c(to.retain, trophic[-grep('_', groups[trophic])])
-	func.categ <- c(func.categ, rep('Trophic', length(trophic[-grep('_', groups[trophic])])))
-	#Trophic generalism
-	tg <- grep('TrophicGen', groups)
-	to.retain <- c(to.retain, tg[1])
-	func.categ <- c(func.categ, rep('Trophic', length(tg[1])))
-	#Diet
-	diet <- grep('Diet', groups)
-	to.retain <- c(to.retain, diet[-grep('_', groups[diet])])
-	func.categ <- c(func.categ, rep('Diet', length(diet[-grep('_', groups[diet])])))
-	#Diet generalism
-	dg <- grep('DietGen', groups)
-	to.retain <- c(to.retain, dg[1])
-	func.categ <- c(func.categ, rep('Trophic', length(dg[1])))
-	#Plants
-	plant <- grep('Plant', groups)
-	to.retain <- c(to.retain, plant[-grep('_plant', groups[plant])])
-	func.categ <- c(func.categ, rep('Plant', length(plant[-grep('_plant', groups[plant])])))
-	
-	out <- data.frame(group = groups[to.retain], category = func.categ)
-	
-	return(out)
-	}
 
 
 

@@ -9,6 +9,7 @@
 	require(scales)
 
 #Read in data
+	func.groups <- readRDS('data/functional_groups.rds')			#Functional groups
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
 		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$modtype), ]	#Remove taxa that weren't found for analyses
 	fitted_func <- readRDS('results/fitted_func.rds')
@@ -24,13 +25,9 @@
 	func_fits <- fitted.matrix(models = fitted_func)
 	turn_points <- assign.taxon(dataset = turn_points)
 
-
-#Exclude taxonomic groups from functional groups
-	taxongroupsA <- c(grep('order', fitted_func$taxon), grep('family', fitted_func$taxon), grep('genus', fitted_func$taxon))
-	fitted_func <- fitted_func[-taxongroupsA,]
-	taxongroupsB <- c(grep('order', func_points$taxon), grep('family', func_points$taxon), grep('genus', func_points$taxon))
-	func_points <- func_points[-taxongroupsB,]
-
+##TO DELETE WHEN FUNCTIONAL GROUPS DATA UPDATED...
+	func_points <- func_points[-grep('1', func_points$taxon)]
+################
 
 
 ##FIGURE 1: MAIN RESULTS
@@ -155,37 +152,79 @@ png('figures/fig1.png', width = 800, height = 800)
 		
 	
 
-##FIGURE - FUNCTIONAL THRESHOLDS
-	#* Use line type for positive/negative
-	#* Use colour for different types of functions - diet vs plants vs physiology vs strata vs...
-
+##FIGURE 2 - FUNCTIONAL THRESHOLDS
+png('figures/fig2.png', width = 320, height = 800)
+{
+	par(mai = c(0.8, 0.1, 0.1, 0.1))
+	par(oma = c(0, 0, 0, 0))
 	pal <- paletteer_d("ggthemes::excel_Aspect")
 	
-	funcs <- func_points[!is.na(func_points$turn.point) ,]
-	funcs <- funcs[order(funcs$turn.point, funcs$maxrate), ]
-	funcs$col <- pal[2]
-	funcs$col[funcs$slope < 0] <- pal[3]
+	#Get and filter data
+	funcs <- rename.funcs(func_groups = func.groups, func_points = func_points)
+	funcs <- funcs[!is.na(funcs$turn.point) ,]
+	funcs <- funcs[!is.na(funcs$category), ]
+	#Sort data
+	funcs$category <- factor(funcs$category, levels = c('Red List status', 'Habitat strata', 
+		'Plant', 'Physiology', 'Development', 'Sociality', 'Movement', 'Diet', 'Trophic',  'Body mass'))
+	funcs$qualifier <- factor(funcs$qualifier, levels = rev(c('high', 'medium', 'low', 
+		'arboreal', 'understory', 'terrestrial', 'subterranean', 'aquatic', 'constant', 
+		'endotherm', 'ectotherm', 'direct', 'indirect', 'social', 'pair', 'solitary', 
+		'winged', 'legless', 'Threatened', 'Not threatened', 
+		'parasitoid', 'parasite', 'predator', 'herbivore', 'producer', 'saprophage', 
+		'hematophage', 'vertivore', 'invertivore', 'florivore', 'folivore', 'frugivore', 
+		'granivore', 'nectarivore', 'palynivore', 'rhizophage', 'xylophage', 'mycophage', 
+		'necrophage', 'detritivore',
+		rev(funcs$qualifier[funcs$TaxType == 'plant']))))
+	
+	funcs <- funcs[order(funcs$category, funcs$qualifier, funcs$TaxType, funcs$turn.point), ]
+	
+	#Add colours
+	funcs$col <- as.numeric(factor(funcs$category))
+	#Add line types
 	funcs$lty <- 1
 	funcs$lty[funcs$slope < 0] <- 2
-	plot(0,0, xlim = c(-20,100), ylim = c(1, nrow(funcs)), col = 'white', 
-		xlab = '', ylab = '',  yaxt = 'n', cex.lab = 2.5, cex.axis = 2)
+	#symbol types
+	types <- c('all taxa', 'invertebrate', 'amphibian', 'bird', 'fish', 'mammal', 'plant')
+	pchtypes <- c(21:25,8,12)
+	pchmatch <- data.frame(cbind(types, pchtypes))
+	funcs$pch <- as.numeric(pchmatch$pchtypes[match(funcs$TaxType, pchmatch$types)])
 
+	#plot figure
+	plot(0,0, xlim = c(-40,160), ylim = c(1, nrow(funcs) + 4), col = 'white', 
+		xlab = '', ylab = '',  yaxt = 'n', xaxt = 'n', cex.lab = 2.5, cex.axis = 2)
+	axis(1, at = c(0, 50, 100), cex.axis = 2)
+
+	#Add categories
+	cats <- unique(funcs$category)
+		cats <- cats[!is.na(cats)]
+	for(k in 1:length(cats)){
+		ymin <- min(which(funcs$category == cats[k])) - 0.5
+		ymax <- max(which(funcs$category == cats[k])) + 0.5
+		ymid <- mean(c(ymin, ymax))
+		polycol <- funcs$col[which(funcs$category == cats[k])[1]]
+		polygon(x = c(-100, -100, 200, 200), y = c(ymin, ymax, ymax, ymin),
+			col = alpha(polycol, 0.1), density=100, border = NA)
+		text(x = 135, y = ymid, cats[k], cex = 0.8, adj = c(0.5))
+		}
+	#Add data
 	for(i in 1:nrow(funcs)){
-		points(x = funcs$turn.point[i], y = i, pch = 21, col = funcs$col[i], lty = funcs$lty[i])
+		points(x = funcs$turn.point[i], y = i, pch = funcs$pch[i], col = funcs$col[i], lty = funcs$lty[i])
 		if(!is.na(funcs$maxrate[i]) & !(funcs$maxrate[i] == 100 & funcs$turn.point[i] == 100)){
-			points(x = funcs$maxrate[i], y = i, pch = 19, col = funcs$col[i], lty = funcs$lty[i])
+			points(x = funcs$maxrate[i], y = i, pch = funcs$pch[i], col = funcs$col[i], lty = funcs$lty[i])
 			lines(x = c(funcs$turn.point[i], funcs$maxrate[i]), y = rep(i,2), col = funcs$col[i], lty = funcs$lty[i])
 			}
-		text(x = 0, y = i, funcs$taxon[i], cex = 0.5, adj = c(1, 0.5))
+		text(x = -5, y = i, funcs$qualifier [i], cex = 0.5, adj = c(1, 0.5))
 		}
-	
-	legend('bottomright', legend = c('turning point', 'maximum rate', 'increasing', 'decreasing'), 
-		pch = c(21,19, NA, NA),
-		pt.bg = c('white', 1, 'white', 'white'),
-		col = c(1, 1, pal[2], pal[3]), 
-		text.col=c(1, 1, pal[2], pal[3]),
-		lty = c(0,0,1,2),
-		cex = 1.5, pt.cex = 3,  bty = 'n', lwd = 2)
+
+	legend('top', legend = c('increasing', 'decreasing', pchmatch$types), 
+		pch = c(NA, NA, as.numeric(pchmatch$pchtypes)),
+		lty = c(1, 2, rep(0, nrow(pchmatch))),
+		bty = 'n', lwd = 2, pt.cex = 1.7, ncol = 3)
+	abline(nrow(funcs) +0.5, 0, lwd = 2)
+	mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
+	}
+	dev.off()
+
 
 
 

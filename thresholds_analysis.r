@@ -38,13 +38,6 @@
 
 	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ])
 
-#Exclude taxonomic groups from functional groups
-	taxongroupsA <- c(grep('order', fitted_func$taxon), grep('family', fitted_func$taxon), grep('genus', fitted_func$taxon))
-	fitted_func <- fitted_func[-taxongroupsA,]
-	taxongroupsB <- c(grep('order', func_points$taxon), grep('family', func_points$taxon), grep('genus', func_points$taxon))
-	func_points <- func_points[-taxongroupsB,]
-
-
 #Summary data
 	#Number of surveys
 		length(thresh.data)
