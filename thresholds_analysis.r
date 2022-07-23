@@ -57,20 +57,66 @@
 	#Number of taxa instantly impacted
 		sum(turn_points$turn.point == 0, na.rm = TRUE)
 		sum(turn_points$turn.point == 0, na.rm = TRUE) / nrow(turn_points)
+	#Number of functional groups instantly impacted
+		sum(func_points$turn.point == 0, na.rm = TRUE)
+		sum(func_points$turn.point == 0, na.rm = TRUE) / nrow(func_points)
+	#Number negative taxon responses
+		sum(turn_points$slope[turn_points$pval < 0.05] < 0)		#are taxa responding negatively?
+		sum(turn_points$slope[turn_points$pval < 0.05] < 0)	 / sum(as.numeric(turn_points$pval) < 0.05)
+	#Number negative functional group responses
+		sum(func_points$slope[func_points$pval < 0.05] < 0)		#are taxa responding negatively?
+		sum(func_points$slope[func_points$pval < 0.05] < 0)	 / sum(as.numeric(func_points$pval) < 0.05)
+
+
+#Ecological thresholds
+	#Thresholds in taxa turning points
+		taxa_turn <- turn_points$turn.point[!is.na(turn_points$turn.point)]
+		break.points(density(taxa_turn)$x, density(taxa_turn)$y)
+	#Thresholds in functional group turning points
+		func_turn <- func_points$turn.point[!is.na(func_points$turn.point)]
+		break.points(density(func_turn)$x, density(func_turn)$y)
+	#Thresholds in taxa peak rate
+		taxa_rate <- turn_points$maxrate[!is.na(turn_points$maxrate)]
+		break.points(density(taxa_rate)$x, density(taxa_rate)$y)
+	#Thresholds in functional group peak rate
+		func_rate <- func_points$maxrate[!is.na(func_points$maxrate)]
+		break.points(density(func_rate)$x, density(func_rate)$y)
+
+
+
+
+#Taxonomic analysis
 	#Number of taxa with significant turnpoints
 		sum(!is.na(turn_points$turn.point))
 		sum(!is.na(turn_points$turn.point)) / nrow(turn_points)
-	#Number negative responses
-		sum(turn_points$slope[turn_points$pval < 0.05] < 0)		#are taxa responding negatively?
-		sum(turn_points$slope[turn_points$pval < 0.05] < 0)	 / sum(as.numeric(turn_points$pval) < 0.05)
-		
 
 
 
-
-
-
-
+#Functional composition - example taxa
+	#Habitat strata generalists
+	find.egs(Function = 'StrataGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Trophic
+	find.egs(Function = 'TrophicGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Endangered
+	find.egs(Function = 'IUCNthreat', function_qual = 'Threatened', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Plants
+	find.egs(Function = 'PlantPhotoCap_Categorised', function_qual = 'high', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Social animals
+	find.egs(Function = 'Sociality', function_qual = 'social', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	find.egs(Function = 'Sociality', function_qual = 'pair', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Carnivores
+	find.egs(Function = 'DietVert', function_qual = 'vertivore', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Subterranean mammals
+	find.egs(Function = 'StraSub', function_qual = 'subterranean', taxtype = 'mammal', 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	
 
 
 

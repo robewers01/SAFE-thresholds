@@ -1,7 +1,7 @@
 
 require(lme4)
 require(pastecs)
-#require(strucchange)
+require(strucchange)
 
 
 #Function to align site x species matrix with lidar data
@@ -904,7 +904,21 @@ rename.funcs <- function(func_groups, func_points){
 	qualifier <- gsub('Develo.*_', '' , qualifier)
 	qualifier <- gsub('Physio.*_', '' , qualifier)
 	qualifier <- gsub('Movem.*_', '' , qualifier)
+	
+	qualifier[grep('WoodDens', newfuncs$shortname)] <- paste('wood density', qualifier[grep('WoodDens', newfuncs$shortname)], sep = '-')
+	qualifier[grep('Ruderal', newfuncs$shortname)] <- paste('ruderal', qualifier[grep('Ruder', newfuncs$shortname)], sep = '-')
+	qualifier[grep('Stress', newfuncs$shortname)] <- paste('stress', qualifier[grep('Stress', newfuncs$shortname)], sep = '-')
+	qualifier[grep('Comp', newfuncs$shortname)] <- paste('competitor', qualifier[grep('Comp', newfuncs$shortname)], sep = '-')
+	qualifier[grep('PhotoCap', newfuncs$shortname)] <- paste('photosynthesis', qualifier[grep('Photo', newfuncs$shortname)], sep = '-')
+
+	qualifier[grep('TrophicGen', newfuncs$shortname)] <- paste('generalism', qualifier[grep('TrophicGen', newfuncs$shortname)], sep = '-')
+	qualifier[grep('DietGen', newfuncs$shortname)] <- paste('generalism', qualifier[grep('DietGen', newfuncs$shortname)], sep = '-')
+	qualifier[grep('StrataGen', newfuncs$shortname)] <- paste('generalism', qualifier[grep('StrataGen', newfuncs$shortname)], sep = '-')
+	qualifier[grep('Threatened', qualifier)] <- 'threatened'
+	qualifier[grep('Not threatened', qualifier)] <- 'not threatened'
+	
 	newfuncs$qualifier = qualifier
+	newfuncs$category[grep('diet gen', newfuncs$qualifier)] <- 'Diet'
 
 	newfuncs$plotname <- gsub('_.*', '' , newfuncs$shortname)
 	newfuncs$plotname <- gsub('Plant', '' , newfuncs$plotname)
@@ -919,31 +933,51 @@ rename.funcs <- function(func_groups, func_points){
 ###################################################################################
 
 
+#Function to find example taxa linked to functional groups
+find.egs <- function(Function, function_qual, taxtype = NA, 
+	turn_points, func_points, func_groups){
+	#Function = functional group; column header in func_groups
+	#function_qual = subfunction... varaible nested within Function
+	#taxtype = target Taxa Type
+	#turn_points = output from turns called on taxon data
+	#func_points = output from turns called on functional group data
+	#func_groups = functional traits data
+	
+	#Find slope of functional group
+	funcs <- rename.funcs(func_groups = func.groups, func_points = func_points)
+	if(is.na(taxtype)){
+		fullname <- paste(Function, function_qual, sep = '_')
+		}else{
+			fullname <- paste(Function, taxtype, function_qual, sep = '_')
+			}
+	funcslope <- funcs$slope[match(fullname, funcs$taxon)]
+	if(funcslope > 0) func.dir = 'positive' 
+	if(funcslope < 0) func.dir = 'negative'
 
 
+	column <- which(names(func_groups) == Function)
+	rows <- which(func_groups[, column] == function_qual)
+	if(!is.na(taxtype)){
+		taxcols <- which(func_groups$TaxonType == taxtype)
+		rows <- intersect(taxcols, rows)
+		}
+	possibles <- func_groups$taxon_name[rows]
+	possmatch <- match(possibles, turn_points$taxon)
+	possmatch <- possmatch[!is.na(possmatch)]
 
+	poss_coefs <- turn_points[possmatch, ]
+	if(func.dir == 'positive'){
+		finalset <- poss_coefs$taxon[poss_coefs$slope > 0 & poss_coefs$pval < 0.05]
+		}
+	if(func.dir == 'negative'){
+		finalset <- poss_coefs$taxon[poss_coefs$slope < 0& poss_coefs$pval < 0.05]
+		}
+	
+	return(sort(finalset))
+	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#####################################################################
-##NOT USED###########################
-#######################################
-#######################################
-#######################################
-#######################################
+###################################################################################
+###################################################################################
 
 #Function to find breakpoints in curvilinear bivariate plots
 break.points <- function(x, y, ss = 10){
@@ -992,7 +1026,7 @@ plot.breaks <- function(x, y, add_plot = TRUE, ...){
 	
 	bp <- break.points(x = x, y = y)
 	pt.col <- rep('white', nrow(bp))
-		pt.col[bp$type == 'decelerate'] <- alpha(pal[3], 1)
+		pt.col[bp$type == 'decelerate'] <- alpha(col, 1)
 #	for(i in 1:nrow(bp)){
 #		arrows(bp$bps[i], bp$bps.y[i], bp$bps[i], -1, col = alpha(pal[3], 0.4), code = 0, lwd = 2, lty = 2)
 #		}
@@ -1002,6 +1036,31 @@ plot.breaks <- function(x, y, add_plot = TRUE, ...){
 
 ###################################################################################
 ###################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#####################################################################
+##NOT USED###########################
+#######################################
+#######################################
+#######################################
+#######################################
+
 
 
 #Function to extract thresholds per functional group
