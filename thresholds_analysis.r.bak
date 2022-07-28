@@ -51,7 +51,16 @@
 		length(which(taxa_cats$matched.taxa$order == 'Coleoptera'))		#Number of beetles
 		length(which(taxa_cats$matched.taxa$order == 'Lepidoptera'))	#Number of leps
 		length(which(taxa_cats$matched.taxa$family == 'Formicidae'))	#Number of ants
-		
+	#Function groups
+	func.groups[which(func.groups$BodyMass == min(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')]
+	func.groups[which(func.groups$BodyMass == max(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')]
+	func.summary(func_groups = func.groups)
+
+
+
+
+
+
 
 #Turnpoints
 	#Number of taxa instantly impacted
@@ -75,7 +84,12 @@
 	#Thresholds in functional group turning points
 		func_turn <- func_points$turn.point[!is.na(func_points$turn.point)]
 		break.points(density(func_turn)$x, density(func_turn)$y)
-
+	#Thresholds in taxa peak rate
+		taxa_rate <- turn_points$maxrate[!is.na(turn_points$maxrate)]
+		break.points(density(taxa_rate)$x, density(taxa_rate)$y)
+	#Thresholds in functional group peak rate
+		func_rate <- func_points$maxrate[!is.na(func_points$maxrate)]
+		break.points(density(func_rate)$x, density(func_rate)$y)
 
 
 

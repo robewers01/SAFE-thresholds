@@ -1018,15 +1018,16 @@ break.points <- function(x, y, ss = 10){
 
 
 #Function to calculate and add breakpoints to figure
-plot.breaks <- function(x, y, add_plot = TRUE, ...){
+plot.breaks <- function(x, y, add_plot = TRUE, decel.col, ...){
 	#x = x values
 	#y = y values
 	#add_plot = binary; add breakpoints to open plot or not?
+	#decel.col = colour for deceleration points
 	#... = parameters passed to plot function
 	
 	bp <- break.points(x = x, y = y)
 	pt.col <- rep('white', nrow(bp))
-		pt.col[bp$type == 'decelerate'] <- alpha(col, 1)
+		pt.col[bp$type == 'decelerate'] <- alpha(decel.col, 1)
 #	for(i in 1:nrow(bp)){
 #		arrows(bp$bps[i], bp$bps.y[i], bp$bps[i], -1, col = alpha(pal[3], 0.4), code = 0, lwd = 2, lty = 2)
 #		}
@@ -1037,6 +1038,51 @@ plot.breaks <- function(x, y, add_plot = TRUE, ...){
 ###################################################################################
 ###################################################################################
 
+
+#Function to filter and arrange data for plotting functional groups
+arrange.funcplot <- function(func_groups, func_points){
+	#func_groups = functional traits data
+	#func_points = output from turns called on functional group data
+
+	funcs <- rename.funcs(func_groups = func_groups, func_points = func_points)
+	funcs <- funcs[!is.na(funcs$turn.point) ,]
+	funcs <- funcs[!is.na(funcs$category), ]
+	funcs <- funcs[!duplicated(funcs), ]
+	#Exclude groups with impacts that only start/end at the ends of the gradient
+	funcs <- funcs[-which(funcs$turn.point == funcs$maxrate), ]
+	
+	#Sort data
+	funcs$category <- factor(funcs$category, levels = c('Red List status', 'Habitat strata', 
+		'Plant', 'Physiology', 'Development', 'Sociality', 'Movement', 'Diet', 'Trophic',  'Body mass'))
+	funcs$qualifier <- factor(funcs$qualifier, levels = rev(c('high', 'medium', 'low', 
+		'generalism-high','generalism-low',
+		'aerial', 'arboreal', 'understory', 'terrestrial', 'subterranean', 'aquatic', 'constant', 'variable',
+		'endotherm', 'ectotherm', 'direct', 'indirect', 'social', 'pair', 'solitary', 
+		'winged', 'legless', 'threatened', 'not threatened', 
+		'parasitoid', 'parasite', 'predator', 'herbivore', 'producer', 'saprophage', 
+		'hematophage', 'vertivore', 'invertivore', 'florivore', 'folivore', 'frugivore', 
+		'granivore', 'nectarivore', 'palynivore', 'rhizophage', 'xylophage', 'mycophage', 
+		'necrophage', 'detritivore',
+		rev(funcs$qualifier[funcs$TaxType == 'plant']))))
+	
+	funcs <- funcs[order(funcs$category, funcs$qualifier, funcs$TaxType, funcs$turn.point), ]
+	
+	#Add colours
+	funcs$col <- pal[as.numeric(factor(funcs$category))]
+	#Add line types
+	funcs$lty <- 1
+	funcs$lty[funcs$slope < 0] <- 2
+	#symbol types
+	types <- c('all taxa', 'invertebrate', 'amphibian', 'bird', 'fish', 'mammal', 'plant')
+	pchtypes <- c(21:25,8,12)
+	pchmatch <- data.frame(cbind(types, pchtypes))
+	funcs$pch <- as.numeric(pchmatch$pchtypes[match(funcs$TaxType, pchmatch$types)])
+	
+	return(funcs)
+	}
+
+###################################################################################
+###################################################################################
 
 
 

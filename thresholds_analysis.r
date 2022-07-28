@@ -51,7 +51,19 @@
 		length(which(taxa_cats$matched.taxa$order == 'Coleoptera'))		#Number of beetles
 		length(which(taxa_cats$matched.taxa$order == 'Lepidoptera'))	#Number of leps
 		length(which(taxa_cats$matched.taxa$family == 'Formicidae'))	#Number of ants
-		
+	#Function groups
+	minsize <- func.groups[which(func.groups$BodyMass == min(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')]
+	maxsize <- func.groups[which(func.groups$BodyMass == max(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')]
+	log10(maxsize$BodyMass[1]) - log10(minsize$BodyMass[1])		#Orders of magnitude in body size
+	minsize
+	maxsize
+	func.summary(func_groups = func.groups)
+
+
+
+
+
+
 
 #Turnpoints
 	#Number of taxa instantly impacted

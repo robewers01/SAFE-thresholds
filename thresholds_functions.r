@@ -1039,6 +1039,89 @@ plot.breaks <- function(x, y, add_plot = TRUE, decel.col, ...){
 ###################################################################################
 
 
+#Function to filter and arrange data for plotting functional groups
+arrange.funcplot <- function(func_groups, func_points){
+	#func_groups = functional traits data
+	#func_points = output from turns called on functional group data
+
+	funcs <- rename.funcs(func_groups = func_groups, func_points = func_points)
+	funcs <- funcs[!is.na(funcs$turn.point) ,]
+	funcs <- funcs[!is.na(funcs$category), ]
+	funcs <- funcs[!duplicated(funcs), ]
+	#Exclude groups with impacts that only start/end at the ends of the gradient
+	funcs <- funcs[-which(funcs$turn.point == funcs$maxrate), ]
+	
+	#Sort data
+	funcs$category <- factor(funcs$category, levels = c('Red List status', 'Habitat strata', 
+		'Plant', 'Physiology', 'Development', 'Sociality', 'Movement', 'Diet', 'Trophic',  'Body mass'))
+	funcs$qualifier <- factor(funcs$qualifier, levels = rev(c('high', 'medium', 'low', 
+		'generalism-high','generalism-low',
+		'aerial', 'arboreal', 'understory', 'terrestrial', 'subterranean', 'aquatic', 'constant', 'variable',
+		'endotherm', 'ectotherm', 'direct', 'indirect', 'social', 'pair', 'solitary', 
+		'winged', 'legless', 'threatened', 'not threatened', 
+		'parasitoid', 'parasite', 'predator', 'herbivore', 'producer', 'saprophage', 
+		'hematophage', 'vertivore', 'invertivore', 'florivore', 'folivore', 'frugivore', 
+		'granivore', 'nectarivore', 'palynivore', 'rhizophage', 'xylophage', 'mycophage', 
+		'necrophage', 'detritivore',
+		rev(funcs$qualifier[funcs$TaxType == 'plant']))))
+	
+	funcs <- funcs[order(funcs$category, funcs$qualifier, funcs$TaxType, funcs$turn.point), ]
+	
+	#Add colours
+	funcs$col <- pal[as.numeric(factor(funcs$category))]
+	#Add line types
+	funcs$lty <- 1
+	funcs$lty[funcs$slope < 0] <- 2
+	#symbol types
+	types <- c('all taxa', 'invertebrate', 'amphibian', 'bird', 'fish', 'mammal', 'plant')
+	pchtypes <- c(21:25,8,12)
+	pchmatch <- data.frame(cbind(types, pchtypes))
+	funcs$pch <- as.numeric(pchmatch$pchtypes[match(funcs$TaxType, pchmatch$types)])
+	
+	return(funcs)
+	}
+
+###################################################################################
+###################################################################################
+
+
+#Function to summarise number of different functional groups in the dataset
+func.summary <- function(func_groups){
+	#func_groups = functional traits data
+	
+	diets <- names(func.groups[grep('Diet', names(func.groups))])
+	numdiets <- length(diets[-c(grep('_', diets), grep('Gener', diets))])		#Number of diets
+	trophic <- names(func.groups[grep('Troph', names(func.groups))])
+	numtroph <- length(trophic[-c(grep('_', trophic), grep('Gener', trophic))])		#Number of trophic levels
+	move <- names(func.groups)[grep('Movem', names(func.groups))]
+	movetypes <- unique(func.groups[, move[-c(grep('_', move))]])
+	movetypes <- movetypes[-is.na(movetypes)]
+	physiol <- names(func.groups)[grep('Phys', names(func.groups))]
+	physioltypes <- unique(func.groups[, physiol[-c(grep('_', physiol))]])
+	physioltypes <- physioltypes[-is.na(physioltypes)]
+	strata <- names(func.groups)[grep('Stra', names(func.groups))]
+	stratatypes <- strata[-c(grep('_', strata))]
+	stratatypes <- stratatypes[-c(is.na(stratatypes), grep('Gener', stratatypes))]
+	social <- names(func.groups)[grep('Soci', names(func.groups))]
+	socialtypes <- unique(func.groups[, social[-c(grep('_', social))]])
+	socialtypes <- socialtypes[-is.na(socialtypes)]
+	cons <- names(func.groups)[grep('IUCN', names(func.groups))]
+	constypes <- unique(func.groups[, cons[-c(grep('_', cons))]])
+	constypes <- constypes[-is.na(constypes)]
+	
+	print(paste('Number of diets:', numdiets))
+	print(paste('Number of trophic levels:', numtroph))
+	print(paste('Number of movement modes:', length(movetypes)))
+	print(paste('Number of physiologies:', length(physioltypes)))
+	print(paste('Number of habitat levels:', length(stratatypes)))
+	print(paste('Number of sociality syndromes:', length(socialtypes)))
+	print(paste('Number of conservation levels:', length(constypes)))
+
+	}
+
+###################################################################################
+###################################################################################
+
 
 
 
