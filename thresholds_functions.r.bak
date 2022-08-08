@@ -555,15 +555,20 @@ summarise.data <- function(full.data){
 
 
 #Function to assign taxa to broad taxonomic categories and level of taxonomic precision
-assign.taxon <- function(dataset){
+assign.taxon <- function(dataset, taxon_table = NA){
 		#dataset = dataframe containing 'taxon' field
 	
 	if (!require(safedata)) install.packages("safedata") && require(safedata)   ## Check if required packages are installed
 
-	#Import full taxa list from safedata
-	taxa <- jsonlite::fromJSON('https://www.safeproject.net/api/taxa')
-	taxa$worksheet_name <- taxa$taxon_name
-	taxa <- safedata:::taxon_index_to_taxon_table(taxa)
+	
+	if(is.data.frame(taxon_table)){
+		taxa <- taxon_table		
+		}else{
+			#Import full taxa list from safedata
+			taxa <- jsonlite::fromJSON('https://www.safeproject.net/api/taxa')
+			taxa$worksheet_name <- taxa$taxon_name
+			taxa <- safedata:::taxon_index_to_taxon_table(taxa)
+			}
 
 	#Extract taxa that match directly
 	matched.ind <- match(unique(dataset$taxon), taxa$taxon_name)
@@ -612,6 +617,7 @@ assign.taxon <- function(dataset){
 	#Append information to dataset
 	dataset$TaxonType <- as.factor(matched.taxa$TaxonType[match(dataset$taxon, matched.taxa$taxon_name)])
 	dataset$TaxonAgg <- as.factor(matched.taxa$TaxonAgg[match(dataset$taxon, matched.taxa$taxon_name)])
+	dataset$Order <- as.factor(matched.taxa$order[match(dataset$taxon, matched.taxa$taxon_name)])
 	
 	out <- list(dataset = dataset, matched.taxa = matched.taxa)
 	
@@ -1085,6 +1091,78 @@ arrange.funcplot <- function(func_groups, func_points){
 ###################################################################################
 
 
+#Function to summarise number of different functional groups in the dataset
+func.summary <- function(func_groups){
+	#func_groups = functional traits data
+	
+	diets <- names(func.groups[grep('Diet', names(func.groups))])
+	numdiets <- length(diets[-c(grep('_', diets), grep('Gener', diets))])		#Number of diets
+	trophic <- names(func.groups[grep('Troph', names(func.groups))])
+	numtroph <- length(trophic[-c(grep('_', trophic), grep('Gener', trophic))])		#Number of trophic levels
+	move <- names(func.groups)[grep('Movem', names(func.groups))]
+	movetypes <- unique(func.groups[, move[-c(grep('_', move))]])
+	movetypes <- movetypes[-is.na(movetypes)]
+	physiol <- names(func.groups)[grep('Phys', names(func.groups))]
+	physioltypes <- unique(func.groups[, physiol[-c(grep('_', physiol))]])
+	physioltypes <- physioltypes[-is.na(physioltypes)]
+	strata <- names(func.groups)[grep('Stra', names(func.groups))]
+	stratatypes <- strata[-c(grep('_', strata))]
+	stratatypes <- stratatypes[-c(is.na(stratatypes), grep('Gener', stratatypes))]
+	social <- names(func.groups)[grep('Soci', names(func.groups))]
+	socialtypes <- unique(func.groups[, social[-c(grep('_', social))]])
+	socialtypes <- socialtypes[-is.na(socialtypes)]
+	cons <- names(func.groups)[grep('IUCN', names(func.groups))]
+	constypes <- unique(func.groups[, cons[-c(grep('_', cons))]])
+	constypes <- constypes[-is.na(constypes)]
+	
+	print(paste('Number of diets:', numdiets))
+	print(paste('Number of trophic levels:', numtroph))
+	print(paste('Number of movement modes:', length(movetypes)))
+	print(paste('Number of physiologies:', length(physioltypes)))
+	print(paste('Number of habitat levels:', length(stratatypes)))
+	print(paste('Number of sociality syndromes:', length(socialtypes)))
+	print(paste('Number of conservation levels:', length(constypes)))
+
+	}
+
+###################################################################################
+###################################################################################
+
+
+##Function to expand functional groups by taxonomic groups
+expand.funcs <- function(taxa){
+	#taxa = functional groups raw data
+	
+	taxon_cat <- sort(unique(taxa$TaxonCat))
+	taxon_groups <- c('amphibian', 'bird', 'fish', 'mammal', 'reptile')		#Only groups not already represented in taxon_cat
+	for(i in 16:ncol(taxa)){
+		orig <- taxa[, i]						#Select the trait
+		for(k in 1:length(taxon_cat)){			#Iterate through each taxon category
+			tax_ind <- which(taxa$TaxonCat == taxon_cat[k])
+			new_entry <- rep(NA, nrow(taxa))
+			new_entry[tax_ind] <- taxa[tax_ind, i]
+			taxa <- cbind(taxa, new_entry)
+			names(taxa)[ncol(taxa)] <- paste(names(taxa)[i], taxon_cat[k], sep = '_')
+			rm(new_entry)
+			}
+		for(j in 1:length(taxon_groups)){	#Iterate through each taxon group
+			tax_ind <- which(taxa$TaxonType == taxon_groups[j])
+			new_entry <- rep(NA, nrow(taxa))
+			new_entry[tax_ind] <- taxa[tax_ind, i]
+			taxa <- cbind(taxa, new_entry)
+			names(taxa)[ncol(taxa)] <- paste(names(taxa)[i], taxon_groups[j], sep = '_')
+			rm(new_entry)
+			}
+		}
+	#Delete empty trait columns
+	emptycols <- sapply(taxa, function (k) all(is.na(k)))
+	taxa <- taxa[, !emptycols]
+	
+	return(taxa)
+	}
+	
+###################################################################################
+###################################################################################
 
 
 

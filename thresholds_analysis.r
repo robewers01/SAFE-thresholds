@@ -10,11 +10,15 @@
 #Import data
 	thresh.data <- readRDS("data/threshold_taxa_data.rds")	#Site x species matrix for each dataset, containing only taxa that are duplicated across >1 dataset
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
-	func.groups <- readRDS('data/functional_groups.rds')			#Functional groups
+	func.groups <- readRDS('data/functional_groups.rds')	#Functional groups
+	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
 	
-#Fit models and calculate summaries
+#Adjust data, fit models and calculate summaries
+	func.groups <- expand.funcs(taxa = func.groups)
+	func.groups <- func.cats(taxa = func.groups)
 #	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
-#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
+#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000').
+#		func_data = func.groups)
 #		saveRDS(fitted_thresh, 'results/fitted_thresh.rds')
 #	fitted_func <- fit.models(full_data = thresh.data, func_data = func.groups, lidar = lidar.data,
 #		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'), min.observs = 5)
@@ -28,21 +32,70 @@
 
 #Read in pre-calculated versions
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
-		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$num.occs), ]	#Remove taxa that weren't found for analyses
+		
+##DELETE WHEN RE-RUN WITHOUT GHOST TAXA
+		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$num.occs), ]	#Remove ghost taxa 
+##############
 	fitted_func <- readRDS('results/fitted_func.rds')
-		fitted_func <- fitted_func[!is.na(fitted_func$num.occs), ]	#Remove taxa that weren't found for analyses
+##DELETE WHEN RE-RUN WITHOUT GHOST TAXA
+		fitted_func <- fitted_func[!is.na(fitted_func$num.occs), ]	#Remove ghost taxa 
+##############
 	turn_points <- readRDS('results/turn_points.rds')
 	func_points <- readRDS('results/func_points.rds')
 	break_points <- readRDS('results/break_points.rds')
 	func_points <- readRDS('results/func_points.rds')
 
-	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ])
+	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ],
+		taxon_table = taxa)
+	turn_points <- assign.taxon(dataset = turn_points, taxon_table = taxa)
+
+
+
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #Summary data
 	#Number of surveys
 		length(thresh.data)
 	#Number of taxa
 		nrow(fitted_thresh)		#all taxa
+	#Number of functional groups
+		nrow(fitted_func)	
+	#Number of modelled taxa
 		sum(as.numeric(fitted_thresh$num.occs) >= 5)	#taxa with >= minimum number of occurrences
 	#Higher order taxa
 		length(unique(taxa_cats$matched.taxa$order))		#Number of orders
@@ -52,29 +105,22 @@
 		length(which(taxa_cats$matched.taxa$order == 'Lepidoptera'))	#Number of leps
 		length(which(taxa_cats$matched.taxa$family == 'Formicidae'))	#Number of ants
 	#Function groups
-	minsize <- func.groups[which(func.groups$BodyMass == min(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')]
-	maxsize <- func.groups[which(func.groups$BodyMass == max(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')]
+	minsize <- print(func.groups[which(func.groups$BodyMass == min(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
+	maxsize <- print(func.groups[which(func.groups$BodyMass == max(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
 	log10(maxsize$BodyMass[1]) - log10(minsize$BodyMass[1])		#Orders of magnitude in body size
-	minsize
-	maxsize
 	func.summary(func_groups = func.groups)
-
-
-
-
-
 
 
 #Turnpoints
 	#Number of taxa instantly impacted
-		sum(turn_points$turn.point == 0, na.rm = TRUE)
-		sum(turn_points$turn.point == 0, na.rm = TRUE) / nrow(turn_points)
+		sum(turn_points$dataset$turn.point == 0, na.rm = TRUE)
+		sum(turn_points$dataset$turn.point == 0, na.rm = TRUE) / nrow(turn_points$dataset)
 	#Number of functional groups instantly impacted
 		sum(func_points$turn.point == 0, na.rm = TRUE)
 		sum(func_points$turn.point == 0, na.rm = TRUE) / nrow(func_points)
 	#Number negative taxon responses
-		sum(turn_points$slope[turn_points$pval < 0.05] < 0)		#are taxa responding negatively?
-		sum(turn_points$slope[turn_points$pval < 0.05] < 0)	 / sum(as.numeric(turn_points$pval) < 0.05)
+		sum(turn_points$dataset$slope[turn_points$pval < 0.05] < 0)		#are taxa responding negatively?
+		sum(turn_points$dataset$slope[turn_points$pval < 0.05] < 0)	 / sum(as.numeric(turn_points$dataset$pval) < 0.05)
 	#Number negative functional group responses
 		sum(func_points$slope[func_points$pval < 0.05] < 0)		#are taxa responding negatively?
 		sum(func_points$slope[func_points$pval < 0.05] < 0)	 / sum(as.numeric(func_points$pval) < 0.05)
@@ -82,27 +128,33 @@
 
 #Ecological thresholds
 	#Thresholds in taxa turning points
-		taxa_turn <- turn_points$turn.point[!is.na(turn_points$turn.point)]
+		taxa_turn <- turn_points$dataset$turn.point[!is.na(turn_points$dataset$turn.point)]
 		break.points(density(taxa_turn)$x, density(taxa_turn)$y)
 	#Thresholds in functional group turning points
 		func_turn <- func_points$turn.point[!is.na(func_points$turn.point)]
 		break.points(density(func_turn)$x, density(func_turn)$y)
 	#Thresholds in taxa peak rate
-		taxa_rate <- turn_points$maxrate[!is.na(turn_points$maxrate)]
+		taxa_rate <- turn_points$dataset$maxrate[!is.na(turn_points$dataset$maxrate)]
 		break.points(density(taxa_rate)$x, density(taxa_rate)$y)
 	#Thresholds in functional group peak rate
 		func_rate <- func_points$maxrate[!is.na(func_points$maxrate)]
 		break.points(density(func_rate)$x, density(func_rate)$y)
 
 
-
-
-#Taxonomic analysis
+#Taxonomic categories
 	#Number of taxa with significant turnpoints
-		sum(!is.na(turn_points$turn.point))
-		sum(!is.na(turn_points$turn.point)) / nrow(turn_points)
-
-
+		sum(!is.na(turn_points$dataset$turn.point))
+		sum(!is.na(turn_points$dataset$turn.point)) / nrow(turn_points$dataset)
+	#Number of orders with impacted taxa
+		func <- function(x) sum(!is.na(x))/length(x)
+		reps <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$Order), FUN = func)
+		sum(reps > 0)				#Number of orders containing impacted taxa
+		sum(reps > 0)/length(reps)	#As a proportion
+	#Proportion taxa with turning points
+		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
+		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) 	#Mean turning point
+		kruskal.test(turn.point ~ factor(TaxonType), data = turn_points$dataset)
+		pairwise.wilcox.test(turn_points$dataset$turn.point, turn_points$dataset$TaxonType, p.adjust.method = "BH")
 
 #Functional composition - example taxa
 	#Habitat strata generalists

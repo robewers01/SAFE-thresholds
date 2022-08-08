@@ -555,15 +555,20 @@ summarise.data <- function(full.data){
 
 
 #Function to assign taxa to broad taxonomic categories and level of taxonomic precision
-assign.taxon <- function(dataset){
+assign.taxon <- function(dataset, taxon_table = NA){
 		#dataset = dataframe containing 'taxon' field
 	
 	if (!require(safedata)) install.packages("safedata") && require(safedata)   ## Check if required packages are installed
 
-	#Import full taxa list from safedata
-	taxa <- jsonlite::fromJSON('https://www.safeproject.net/api/taxa')
-	taxa$worksheet_name <- taxa$taxon_name
-	taxa <- safedata:::taxon_index_to_taxon_table(taxa)
+	
+	if(is.data.frame(taxon_table)){
+		taxa <- taxon_table		
+		}else{
+			#Import full taxa list from safedata
+			taxa <- jsonlite::fromJSON('https://www.safeproject.net/api/taxa')
+			taxa$worksheet_name <- taxa$taxon_name
+			taxa <- safedata:::taxon_index_to_taxon_table(taxa)
+			}
 
 	#Extract taxa that match directly
 	matched.ind <- match(unique(dataset$taxon), taxa$taxon_name)
@@ -612,6 +617,7 @@ assign.taxon <- function(dataset){
 	#Append information to dataset
 	dataset$TaxonType <- as.factor(matched.taxa$TaxonType[match(dataset$taxon, matched.taxa$taxon_name)])
 	dataset$TaxonAgg <- as.factor(matched.taxa$TaxonAgg[match(dataset$taxon, matched.taxa$taxon_name)])
+	dataset$Order <- as.factor(matched.taxa$order[match(dataset$taxon, matched.taxa$taxon_name)])
 	
 	out <- list(dataset = dataset, matched.taxa = matched.taxa)
 	
@@ -1123,6 +1129,66 @@ func.summary <- function(func_groups){
 ###################################################################################
 
 
+##Function to expand functional groups by taxonomic groups
+expand.funcs <- function(taxa){
+	#taxa = functional groups raw data
+	
+	taxon_cat <- sort(unique(taxa$TaxonCat))
+	taxon_groups <- c('amphibian', 'bird', 'fish', 'mammal', 'reptile')		#Only groups not already represented in taxon_cat
+	for(i in 16:ncol(taxa)){
+		orig <- taxa[, i]						#Select the trait
+		for(k in 1:length(taxon_cat)){			#Iterate through each taxon category
+			tax_ind <- which(taxa$TaxonCat == taxon_cat[k])
+			new_entry <- rep(NA, nrow(taxa))
+			new_entry[tax_ind] <- taxa[tax_ind, i]
+			taxa <- cbind(taxa, new_entry)
+			names(taxa)[ncol(taxa)] <- paste(names(taxa)[i], taxon_cat[k], sep = '_')
+			rm(new_entry)
+			}
+		for(j in 1:length(taxon_groups)){	#Iterate through each taxon group
+			tax_ind <- which(taxa$TaxonType == taxon_groups[j])
+			new_entry <- rep(NA, nrow(taxa))
+			new_entry[tax_ind] <- taxa[tax_ind, i]
+			taxa <- cbind(taxa, new_entry)
+			names(taxa)[ncol(taxa)] <- paste(names(taxa)[i], taxon_groups[j], sep = '_')
+			rm(new_entry)
+			}
+		}
+	#Delete empty trait columns
+	emptycols <- sapply(taxa, function (k) all(is.na(k)))
+	taxa <- taxa[, !emptycols]
+	
+	return(taxa)
+	}
+	
+###################################################################################
+###################################################################################
+
+
+##Function to generate categorical versions of numeric functional traits
+func.cats <- function(taxa){
+	#taxa = functional traits data matrix
+
+	num_traits <- names(taxa[sapply(taxa, is.numeric)])
+	for(i in 1:length(num_traits)){
+		col_ind <- match(num_traits[i], names(taxa))
+		if(length(grep('Body', num_traits[i])) == 1){
+			new_entry <- as.character(cat.data(taxa[, col_ind], num.cats = 3, reverse = FALSE))
+			}else{
+				new_entry <- as.character(cat.data(taxa[, col_ind], num.cats = 2, reverse = FALSE))
+				}
+		if(length(unique(new_entry)) >= 2){			#Only keep if multiple categories can be identified
+			taxa <- cbind(taxa, new_entry)
+			names(taxa)[ncol(taxa)] <- paste(names(taxa)[col_ind], 'Categorised', sep = '_')
+			rm(new_entry)
+			}
+		}
+	
+	return(taxa)
+	}
+		
+###################################################################################
+###################################################################################
 
 
 
