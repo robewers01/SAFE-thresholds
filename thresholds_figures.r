@@ -5,13 +5,16 @@
 	source("thresholds_functions.r")
 
 #Load packages
+	require(ape)
 	require(grid)
+	require(jpeg)
 	require(lme4)
 	require(paletteer)
 	require(png)
 	require(scales)
 
 #Read in data
+	thresh_data <- readRDS('data/threshold_taxa_data.rds')
 	func.groups <- readRDS('data/functional_groups.rds')			#Functional groups
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
 		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$modtype), ]	#Remove taxa that weren't found for analyses
@@ -21,6 +24,8 @@
 	func_points <- readRDS('results/func_points.rds')
 	break_points <- readRDS('results/break_points.rds')
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
+	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
+	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
 
 #Summary calculations
 	ecdf_out <- cdf(turn_points$turn.point)
@@ -31,7 +36,6 @@
 
 
 ##FIGURE 1: MAIN RESULTS
-
 png('figures/fig1.png', width = 800, height = 800)
 {
 	par(mfrow = c(2,2))
@@ -164,56 +168,6 @@ png('figures/fig1.png', width = 800, height = 800)
 
 
 ##FIGURE 2 - TAXONOMIC SENSITIVITY
-
-{	
-
-	par(oma = c(0, 0, 0, 0))
-	par(mai = c(0.8, 1.0, 0.3, 0.3))
-	pal <- paletteer_d("ggthemr::solarized")
-	turn_points$dataset$TaxonType <- factor(turn_points$dataset$TaxonType, levels = c('plant', 'invertebrate', 
-		'mammal', 'bird', 'reptile', 'amphibian', 'fish'))
-		
-	#Plot graph
-	vioplot(turn.point ~ factor(TaxonType), data = turn_points$dataset,
-		ylim = c(0,100), ylab = '', xlab = '', yaxt = 'n', cex.axis = 2,
-		col = alpha(pal[1:(length(taxcats))], 0.3), linecol = pal[1:(col.index - 1)],
-		horizontal = TRUE)
-	axis(1, at = seq(0, 100, 20), cex.axis = 2)
-	stripchart(turn.point ~ factor(TaxonType), data = turn_points$dataset, 
-		method = 'jitter', jitter = 0.25, vertical = FALSE, add = TRUE, pch = 19, cex = 1.5,
-		col = alpha(pal[1:(length(taxcats))], 0.4))
-
-
-	#Add image labels
-	plant<-readPNG("data/leaf.png")
-	grid.raster(plant, x=0.07, y=0.2, width=0.1)
-
-	insect<-readPNG("data/invert.png")
-	grid.raster(insect, x=0.07, y=0.32, width=0.1)
-
-	mammal<-readPNG("data/mammal.png")
-	grid.raster(mammal, x=0.07, y=0.44, width=0.1)
-
-	bird<-readPNG("data/aves.png")
-	grid.raster(bird, x=0.07, y=0.54, width=0.1)
-
-	reptile<-readPNG("data/reptile.png")
-	grid.raster(reptile, x=0.07, y=0.65, width=0.1)
-
-	amphib<-readPNG("data/frog.png")
-	grid.raster(amphib, x=0.07, y=0.77, width=0.1)
-	
-	fish<-readPNG("data/fish.png")
-	grid.raster(fish, x=0.07, y=0.88, width=0.1)
-
-	mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
-	
-	dev.off()
-	}
-
-
-
-
 png('figures/fig2.png', width = 400, height = 400)
 {
 
@@ -322,8 +276,66 @@ png('figures/fig3.png', width = 320, height = 800)
 
 
 
+##FIGURE S1 - PHYLOGENY
+png(paste('figures/figS1.png', sep = ""), width = 500, height = 500)
+{
+	phylo <- arrange.phylo(timetree = tr, raw_data = thresh_data, taxa_safe = taxa,
+		tt_map = map, coefs = fitted_thresh, palette_col = paletteer_d("ggsci::default_igv"))
+
+	par(oma = c(1,0,0,0), mar=c(3, 0, 0, 0))
+	plot.phylo(phylo$tr, show.tip.label = FALSE, edge.color = 'white',
+		edge.width = 1, font = 0.8, x.lim = c(0,2300))
+	phydataplot(phylo$numbers2$numTax * 200, phylo$tr, offset = 30, col = alpha(phylo$pal[phylo$col_index], 0.3), legend = 'none')	#Number of taxa
+	phydataplot(phylo$numbers3$propTax * 200, phylo$tr, offset = 30, col = alpha(phylo$pal[phylo$col_index], 0.3), legend = 'none')	#Proportion of taxa modelled
+	
+	polygon(x = c(1520,2300, 2300, 1520), y = c(0.5, 0.5, 5.5, 5.5), col = alpha(phylo$pal[1], 0.1), border = NA)
+		text(x = 2280, y = 2.5, labels = 'Actinopterygii', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(5.5, 5.5, 6.5, 6.5), col = alpha(phylo$pal[2], 0.1), border = NA)
+		text(x = 2280, y = 5, labels = 'Amphibia', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(6.5, 6.5, 7.5, 7.5), col = alpha(phylo$pal[3], 0.1), border = NA)
+		text(x = 2280, y = 8, labels = 'Reptilia', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(7.5, 7.5, 21.5, 21.5), col = alpha(phylo$pal[4], 0.1), border = NA)
+		text(x = 2280, y = 14.5, labels = 'Aves', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(21.5, 21.5, 30.5, 30.5), col = alpha(phylo$pal[5], 0.1), border = NA)
+		text(x = 2280, y = 26, labels = 'Mammalia', adj = 1, cex = 0.8)
+#	polygon(x = c(1520,2300, 2300, 1520), y = c(30.5, 30.5, 31.5, 31.5), col = alpha(phylo$pal[6], 0.1), border = NA)
+#		text(x = 2280, y = 30.5, labels = 'Diplopoda', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(30.5, 30.5, 32.5, 32.5), col = alpha(phylo$pal[6], 0.1), border = NA)
+		text(x = 2280, y = 32.5, labels = 'Malacostraca', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(32.5, 32.5, 51.5, 51.5), col = alpha(phylo$pal[7], 0.1), border = NA)
+		text(x = 2280, y = 42, labels = 'Insecta', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(51.5, 51.5, 55.5, 55.5), col = alpha(phylo$pal[8], 0.1), border = NA)
+		text(x = 2280, y = 53.5, labels = 'Arachnida', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(55.5, 55.5, 57.5, 57.5), col = alpha(phylo$pal[9], 0.1), border = NA)
+		text(x = 2280, y = 56.5, labels = 'Clitellata', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(57.5, 57.5, 59.5, 59.5), col = alpha(phylo$pal[10], 0.1), border = NA)
+		text(x = 2280, y = 58.5, labels = 'Lycopodiopsida', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(59.5, 59.5, 64.5, 64.5), col = alpha(phylo$pal[12], 0.1), border = NA)
+		text(x = 2280, y = 62, labels = 'Polypodiopsida', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(64.5, 64.5, 68.5, 68.5), col = alpha(phylo$pal[13], 0.1), border = NA)
+		text(x = 2280, y = 68.5, labels = 'Magnoliopsida', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(68.5, 68.5, 77.5, 77.5), col = alpha(phylo$pal[14], 0.1), border = NA)
+		text(x = 2280, y = 73, labels = 'Liliopsida', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(77.5, 77.5, 102.5, 102.5), col = alpha(phylo$pal[13], 0.1), border = NA)
+		text(x = 2280, y = 92, labels = 'Magnoliopsida', adj = 1, cex = 0.8)
+	polygon(x = c(1520,2300, 2300, 1520), y = c(102.5, 102.5, 103.5, 103.5), col = alpha(phylo$pal[15], 0.1), border = NA)
+		text(x = 2280, y = 103, labels = 'Gnetopsida', adj = 1, cex = 0.8)
 
 
+	#Polygon to hide the axis I can't suppress...
+	par(fig=c(0, 1, 0, 1), oma=c(0, 2.5, 2, 0), mar=c(0, 0, 0, 0), new=TRUE)
+	plot(0, 0, type='n', bty='n', xaxt='n', yaxt='n')
+	legend('bottomright', legend = c('a','somethingreallyreallylongandboring'), text.col = 'white', bg = 'white', box.col = 'white')
+
+	par(oma = c(1,0,0,0), mar=c(3, 0, 0, 0), new = TRUE)
+	plot.phylo(tr, show.tip.label = FALSE, edge.color = 'grey',
+		edge.width = 2, font = 0.8, x.lim = c(0,2300))
+
+	axis(1, at = seq(1530, 2130, 200), labels = c(parse(text = '10^0'), parse(text = '10^1'), parse(text = '10^2'), parse(text = '10^3')))
+	mtext('Number of taxa              ', 1, outer = TRUE, line = -0.8, at = c(0, 1), adj = 1, cex = 1.3)
+
+	dev.off()
+}
 
 
 

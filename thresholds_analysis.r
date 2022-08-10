@@ -14,8 +14,8 @@
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
 	
 #Adjust data, fit models and calculate summaries
-	func.groups <- expand.funcs(taxa = func.groups)
-	func.groups <- func.cats(taxa = func.groups)
+	func.groups <- expand.funcs(taxa = func.groups)		#Expand functions into taxonomic group-specific values
+	func.groups <- func.cats(taxa = func.groups)		#Convert numeric traits into categorical
 #	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
 #		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000').
 #		func_data = func.groups)
@@ -32,12 +32,10 @@
 
 #Read in pre-calculated versions
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
+	fitted_func <- readRDS('results/fitted_func.rds')
 		
 ##DELETE WHEN RE-RUN WITHOUT GHOST TAXA
 		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$num.occs), ]	#Remove ghost taxa 
-##############
-	fitted_func <- readRDS('results/fitted_func.rds')
-##DELETE WHEN RE-RUN WITHOUT GHOST TAXA
 		fitted_func <- fitted_func[!is.na(fitted_func$num.occs), ]	#Remove ghost taxa 
 ##############
 	turn_points <- readRDS('results/turn_points.rds')
@@ -48,44 +46,6 @@
 	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ],
 		taxon_table = taxa)
 	turn_points <- assign.taxon(dataset = turn_points, taxon_table = taxa)
-
-
-
-		
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 #Summary data
@@ -182,8 +142,15 @@
 		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
 	
 
-
-
+#Methods
+	#Taxon x survey combinations
+		taxaXdata <- taxon.dataset(thresh.data)	#Create taxon x survey matrix
+		sum(!is.na(taxaXdata))
+	#Number of taxa modelled
+		nrow(fitted_thresh)
+	#Number taxa represented in >1 survey
+		modelled <- taxaXdata[match(fitted_thresh$taxon, rownames(taxaXdata)),]	#Subset to just modelled taxa
+		sum(apply(X = modelled, MARGIN = 1, FUN = function(x) sum(!is.na(x))) > 1)	#Number of taxa in multiple surveys
 
 
 

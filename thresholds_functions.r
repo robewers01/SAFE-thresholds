@@ -395,7 +395,6 @@ fitted.vals <- function(predx = seq(-1000, 1000, 1), mod_coef){
 ###################################################################################
 ###################################################################################
 
-
 	
 #Function to find first turning point
 root.finder <- function(fitted_vals){
@@ -479,8 +478,6 @@ extract.turns <- function(turns_estimate){
 	
 ###################################################################################
 ###################################################################################
-
-
 	
 
 #Function to estimate turning points for fitted models
@@ -511,7 +508,6 @@ turns <- function(fitted_mod){
 
 ###################################################################################
 ###################################################################################
-
 
 
 #Function to summarise datasets
@@ -548,7 +544,6 @@ summarise.data <- function(full.data){
 	return(out)
 	
 	}
-
 
 ##########################################################################################################
 ##########################################################################################################
@@ -873,9 +868,6 @@ extract.func <- function(func_groups){
 ###################################################################################
 
 
-#	func_points <- readRDS('results/func_points.rds')
-#	func_grousp = func.groups
-
 #Function to categorise and name functional groups
 rename.funcs <- function(func_groups, func_points){
 		#func_groups = functional groups data
@@ -1191,65 +1183,158 @@ func.cats <- function(taxa){
 ###################################################################################
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-#####################################################################
-##NOT USED###########################
-#######################################
-#######################################
-#######################################
-#######################################
-
-
-
-#Function to extract thresholds per functional group
-func.thresholds <- function(func_groups, turns_taxa){
-	#func_groups = functional traits data
-	#turns_taxa = output from call to turns that used individual taxa
-
-	taxa.func <- taxaXfunc(func_groups = func_groups)	#list of taxa per functional group
-	turns <- rates <- data.frame(matrix(NA, nrow = 0, ncol = 3))
-	for(i in 1:length(taxa.func)){
-		print(paste('Working on functional group', i, 'out of', length(taxa.func)))
-		#Extract data
-		taxa <- taxa.func[[i]]
-		taxinds <- match(taxa, turns_taxa$taxon)
-		taxinds <- taxinds[!is.na(taxinds)]
-		models <- turns_taxa[taxinds, ]
-		
-		#Construct CDFs
-		turnsCDF <- cdf(data = models$turn.point, x_range = c(0:100))
-		ratesCDF <- cdf(data = models$maxrate, x_range = c(0:100))
-		
-		#Breakpoints
-		turn_breaks <- try(plot.breaks(x = turnsCDF$x, y = turnsCDF$prop, add_plot = FALSE), silent = TRUE)
-		rate_breaks <- try(plot.breaks(x = ratesCDF$x, y = ratesCDF$prop, add_plot = FALSE), silent = TRUE)
-		
-		if(class(turn_breaks) != "try-error"){			
-			turns <- rbind(turns, turn_breaks)
-			}
-		if(class(rate_breaks) != "try-error"){			
-			rates <- rbind(rates, rate_breaks)
-			}
-		rm(turn_breaks, rate_breaks)
-		}
+#Function to return vector of taxa represented in aggregated datasets
+taxa.list <- function(dup_data){
+	#dup_data = dataset containing raw data
 	
-	return(list(turn.breaks = turns, rate.breaks = rates))
+	taxa <- character()
+	for(i in 1:length(dup_data)){		#For each dataset...
+		taxa <- c(taxa, names(dup_data[[i]]$comm.out)[4:ncol(dup_data[[i]]$comm.out)])	#Extract vector of taxa names
+		}
+		
+	return(unique(taxa))
 	}
 
 ###################################################################################
 ###################################################################################
+
+
+#Function to arrange phylogenetic data for plotting
+arrange.phylo <- function(timetree, raw_data, taxa_safe, tt_map, coefs, palette_col){
+	#timetree = phylogeny generated from timetree.org
+	#raw_data = raw data used in analysis
+	#taxa_safe = full list of all taxa in SAFE database
+	#tt_map = map to connect taxa in data to taxa in timetree
+	#coefs = results from fit.models
+	#palette_col = colour palette
+	
+	tr <- timetree
+	taxa <- taxa_safe
+	map <- tt_map
+	taxa_list <- taxa.list(dup_data = raw_data)
+
+	#Extract number of taxa per order
+	taxa_mod <- taxa[match(taxa_list, taxa$taxon_name), ]
+	orders <- sort(unique(taxa_mod$order))
+	tax.order <- taxa_mod[match(orders, taxa_mod$order), ]
+		tax.order <- tax.order[, -c(5:13)]			#Delete extraneous columns
+	num_taxa <- summary(factor(taxa_mod$order), maxsum = length(orders)+5)
+	tax.order$num_taxa <- num_taxa[match(orders, names(num_taxa))]
+	
+	#Number modelled taxa per order
+	coefs2 <- coefs[!is.na(coefs[,2]), ]
+	modelled_tax <-sort(unique(coefs2$taxon))
+	coef_sub <- taxa_mod[match(modelled_tax, taxa_mod$taxon_name), ]
+	numbers <- summary(factor(coef_sub$order), maxsum = length(orders)+5)
+	tax.order$num.modelled <- numbers[match(orders, names(numbers))]
+		tax.order$num.modelled[is.na(tax.order$num.modelled)] <- 0
+
+	#Update taxonomy to align with timetree.org
+	tax.order <- tax.order[-(which(tax.order$order == 'Hypocreales')), ]		#No fungi were included in the analyses
+	tax.order <- tax.order[-(which(tax.order$order == 'Collembola')), ]			#No taxon with enough observations to be modelled
+	tax.order[tax.order$order == 'Passeriformes', 5:6]	<- tax.order[tax.order$order == 'Passeriformes', 5:6] + tax.order[tax.order$order == 'Hydrornis', 5:6]	#Merge Hydrornis with Passeriformes
+		tax.order <- tax.order[-(which(tax.order$order == 'Hydrornis')),]
+	tax.order[tax.order$order == 'Blattodea', 5:6]	<- tax.order[tax.order$order == 'Blattodea', 5:6] + tax.order[tax.order$order == 'Isoptera', 5:6]	#Merge Isoptera with Blattodea
+		tax.order <- tax.order[-(which(tax.order$order == 'Isoptera')),]
+	tax.order$order[tax.order$order == 'Dinosauria'] <- 'Galliformes'		#They were chickens, not dinosaurs...
+
+	#Identify one example species per order that exists on TimeTree.org
+	tax.order$tt_fam <- map$V3[match(tax.order$order, map$V1)]
+	tax.order$tt_fam <- sub(' ', '_', tax.order$tt_fam)
+	
+	#Trim to keep just the orders in the dataset
+	tr <- drop.tip(tr, which(tr$tip.label =='Polydesmus_complanatus'))			#No millipedes in final dataset
+	ords_to_keep <- tr$tip.label[match(tax.order$tt_fam, tr$tip.label)]
+	tr$tip.label <- tax.order$order[match(tr$tip.label, tax.order$tt_fam)]
+
+	#Add plotting details
+	num1 <- tax.order$num.modelled[match(tr$tip.label, tax.order$order)]
+		number <- matrix(num1)
+		rownames(number) <- tr$tip.label
+		colnames(number) <- 'num_mod'
+	num_tax <- tax.order$num_taxa[match(tr$tip.label, tax.order$order)]
+		number <- cbind(number, num_tax)
+	prop_mod <- num1 / num_tax
+		number <- cbind(number, prop_mod)
+	prop_not_mod <- 1 - prop_mod
+		number <- cbind(number, prop_not_mod)
+	class1 <- tax.order$class[match(tr$tip.label, tax.order$order)]
+		number <- cbind(number, class1)
+
+	for(i in 1:4){
+		number[is.na(number[, i]), i] <- 0
+		}
+
+	numbers2 <- data.frame(numTax = log10(as.numeric(number[, 2]) + 1))
+	numbers3<- data.frame(propTax = log10(as.numeric(number[, 1]) + 1))	#Number of taxa that were modelled
+		numbers3[numbers3 == 0] <- NA
+	rownames(numbers2) <- rownames(numbers3) <- tr$tip.label
+
+	classes <- unique(class1)
+	col_index <- match(class1, classes)
+
+	return(list(tr = tr, numbers2 = numbers2, numbers3 = numbers3, 
+		pal = palette_col, col_index = col_index))
+	}
+
+###################################################################################
+###################################################################################
+
+
+#Function to create taxon x dataset list
+taxon.dataset <- function(full_data){
+	#full_data = output from taxa.clean
+
+	taxa.dataset <- NA
+	for(i in 1:length(full_data)){
+		comm.out <- full_data[[i]]$comm.out
+		if(!is.data.frame(taxa.dataset)){	
+			if(ncol(comm.out) > 4){
+				taxa.dataset <- as.data.frame(matrix(colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE),
+						nrow = length(4:ncol(comm.out)), ncol = 1))
+				}else{
+					taxa.dataset <- as.data.frame(matrix(sum(comm.out[, 4], na.rm = TRUE),
+						nrow = length(4:ncol(comm.out)), ncol = 1))
+					}
+			rownames(taxa.dataset) <- names(comm.out)[4:ncol(comm.out)]
+			colnames(taxa.dataset) <- full_data[[i]]$data.name
+			}else{
+				taxa.dataset <- cbind(taxa.dataset, matrix(NA, nrow(taxa.dataset), ncol = 1))
+					names(taxa.dataset)[ncol(taxa.dataset)] <- full_data[[i]]$data.name
+				matched.taxa <- match(names(comm.out)[4:ncol(comm.out)], rownames(taxa.dataset))
+					matched.taxa2 <- matched.taxa[!is.na(matched.taxa)]
+				if(length(matched.taxa2) > 0){	
+					if(ncol(comm.out) > 4){
+						taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- 
+							colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[which(!is.na(matched.taxa))]
+						}else{
+							taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)
+							}
+					}
+				new.taxa <- names(comm.out)[4:ncol(comm.out)][is.na(matched.taxa)]
+					new.taxa <- new.taxa[!is.na(new.taxa)]
+				if(length(new.taxa) > 0){	
+					new.dataset <- as.data.frame(matrix(NA, nrow = length(new.taxa), ncol = ncol(taxa.dataset)))
+						names(new.dataset) <- names(taxa.dataset)
+						rownames(new.dataset) <- new.taxa
+				if(ncol(comm.out) > 4){	
+					new.dataset[ , ncol(new.dataset)] <- colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
+					}else{
+						new.dataset[ , ncol(new.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
+						}
+					taxa.dataset <- rbind(taxa.dataset, new.dataset)
+					}
+				}
+		}
+	return(taxa.dataset)
+	}
+
+###################################################################################
+###################################################################################
+
+
+
+
 
 
 
