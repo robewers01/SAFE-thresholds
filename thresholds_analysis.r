@@ -12,6 +12,8 @@
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
 	func.groups <- readRDS('data/functional_groups.rds')	#Functional groups
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
+	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
+	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
 	
 #Adjust data, fit models and calculate summaries
 	func.groups <- expand.funcs(taxa = func.groups)		#Expand functions into taxonomic group-specific values
@@ -46,7 +48,23 @@
 	taxa_cats <- assign.taxon(dataset = fitted_thresh[fitted_thresh$num.occs >= 5, ],
 		taxon_table = taxa)
 	turn_points <- assign.taxon(dataset = turn_points, taxon_table = taxa)
+	phylo <- arrange.phylo(timetree = tr, raw_data = thresh.data, taxa_safe = taxa,
+		tt_map = map, coefs = fitted_thresh, palette_col = NA)
+	taxaXdata <- taxon.dataset(thresh.data)	#Create taxon x survey matrix
 
+
+
+#Abstract
+	#Number of taxa modelled
+		nrow(fitted_thresh)
+	#Number of orders containing taxa that were analysed
+		sum(!is.na(phylo$numbers3$propTax))
+	#Number of functional groups
+		nrow(fitted_func)
+	#Proactive conservation
+		#Value obtained from figures
+	#Reactive conservation
+		#Value obtained from figures
 
 #Summary data
 	#Number of surveys
@@ -64,26 +82,36 @@
 		length(which(taxa_cats$matched.taxa$order == 'Coleoptera'))		#Number of beetles
 		length(which(taxa_cats$matched.taxa$order == 'Lepidoptera'))	#Number of leps
 		length(which(taxa_cats$matched.taxa$family == 'Formicidae'))	#Number of ants
-	#Function groups
+	#Functional groups
 	minsize <- print(func.groups[which(func.groups$BodyMass == min(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
 	maxsize <- print(func.groups[which(func.groups$BodyMass == max(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
 	log10(maxsize$BodyMass[1]) - log10(minsize$BodyMass[1])		#Orders of magnitude in body size
 	func.summary(func_groups = func.groups)
 
 
-#Turnpoints
+
 	#Number of taxa instantly impacted
 		sum(turn_points$dataset$turn.point == 0, na.rm = TRUE)
 		sum(turn_points$dataset$turn.point == 0, na.rm = TRUE) / nrow(turn_points$dataset)
 	#Number of functional groups instantly impacted
 		sum(func_points$turn.point == 0, na.rm = TRUE)
 		sum(func_points$turn.point == 0, na.rm = TRUE) / nrow(func_points)
-	#Number negative taxon responses
-		sum(turn_points$dataset$slope[turn_points$pval < 0.05] < 0)		#are taxa responding negatively?
-		sum(turn_points$dataset$slope[turn_points$pval < 0.05] < 0)	 / sum(as.numeric(turn_points$dataset$pval) < 0.05)
-	#Number negative functional group responses
-		sum(func_points$slope[func_points$pval < 0.05] < 0)		#are taxa responding negatively?
-		sum(func_points$slope[func_points$pval < 0.05] < 0)	 / sum(as.numeric(func_points$pval) < 0.05)
+	#Number negative vs positive taxon responses
+		sum(turn_points$dataset$slope < 0 & turn_points$dataset$pval < 0.05)	#number responding negatively
+		sum(turn_points$dataset$slope > 0 & turn_points$dataset$pval < 0.05)	#number responding positively
+	#Number negative vs positive functional group responses
+		sum(func_points$slope < 0 & func_points$pval < 0.05)	#number responding negatively
+		sum(func_points$slope > 0 & func_points$pval < 0.05)	#number responding positively
+	#Proportion of positive responders
+		sum(turn_points$dataset$slope > 0 & turn_points$dataset$pval < 0.05) / nrow(turn_points$dataset)	#taxa
+		sum(func_points$slope > 0 & func_points$pval < 0.05) / nrow(func_points)	#functional groups
+	
+
+#Figure 1 caption
+	#Number of taxa
+		nrow(fitted_thresh)		#all taxa
+	#Number of functional groups
+		nrow(fitted_func)	
 
 
 #Ecological thresholds
@@ -102,9 +130,8 @@
 
 
 #Taxonomic categories
-	#Number of taxa with significant turnpoints
-		sum(!is.na(turn_points$dataset$turn.point))
-		sum(!is.na(turn_points$dataset$turn.point)) / nrow(turn_points$dataset)
+	#Number of orders
+		sum(!is.na(phylo$numbers3$propTax))
 	#Number of orders with impacted taxa
 		func <- function(x) sum(!is.na(x))/length(x)
 		reps <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$Order), FUN = func)
@@ -113,8 +140,7 @@
 	#Proportion taxa with turning points
 		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
 		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) 	#Mean turning point
-		kruskal.test(turn.point ~ factor(TaxonType), data = turn_points$dataset)
-		pairwise.wilcox.test(turn_points$dataset$turn.point, turn_points$dataset$TaxonType, p.adjust.method = "BH")
+
 
 #Functional composition - example taxa
 	#Habitat strata generalists
@@ -144,13 +170,26 @@
 
 #Methods
 	#Taxon x survey combinations
-		taxaXdata <- taxon.dataset(thresh.data)	#Create taxon x survey matrix
 		sum(!is.na(taxaXdata))
+	#Number of data sources
+		data_sum <- summarise.data(thresh.data)
+		nrow(data_sum)
+	#Number of surveys
+		sum(data_sum$surveys)
+	#Total number of taxa in all surveys combined
+		nrow(taxaXdata)
+	#Number of taxa identified to species
+		used_taxa <- taxa[match(rownames(taxaXdata), taxa$taxon_name), ]
+		sum(used_taxa$taxon_level == 'species', na.rm = TRUE)
+	#Number identified to morphospecies
+		sum(used_taxa$taxon_level == 'morphospecies', na.rm = TRUE)
 	#Number of taxa modelled
 		nrow(fitted_thresh)
 	#Number taxa represented in >1 survey
 		modelled <- taxaXdata[match(fitted_thresh$taxon, rownames(taxaXdata)),]	#Subset to just modelled taxa
 		sum(apply(X = modelled, MARGIN = 1, FUN = function(x) sum(!is.na(x))) > 1)	#Number of taxa in multiple surveys
-
-
+	#Number of orders in all surveys combined
+		length(phylo$tr$tip.label)
+	#Number of orders containing taxa that were analysed
+		sum(!is.na(phylo$numbers3$propTax))
 
