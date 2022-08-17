@@ -1506,9 +1506,52 @@ resil.func <- function(func_groups, func_points, turns){
 	
 	out$taxon <- rownames(out)
 
-	return(out)
+
+	resil_func <- merge(out, funcs)
+	resil_func$category <- factor(resil_func$category, levels = c('Red List status', 
+		'Body mass', 'Physiology', 'Development', 'Movement', 'Sociality', 
+		'Trophic', 'Diet', 'Habitat strata', 'Plant'))
+	cats <- summary(resil_func$category)
+	keeps <- names(cats)[cats >= 5]			#Only retain categories with >=5 estimates
+	resil_dat <- resil_func[which(!is.na(match(resil_func$category, keeps))), ]
+	resil_dat$category <- factor(resil_dat$category, levels = keeps)	
+
+	res <- by(resil_dat$resilience, resil_dat$category, mean)
+	sens <- by(resil_dat$sensitivity, resil_dat$category, quantile, probs = c(0.025, 0.5, 0.975))
+	susc <- by(resil_dat$susceptibility, resil_dat$category, quantile, probs = c(0.025, 0.5, 0.975))
+
+	return(list(summary = out, res = res, sens = sens, susc = susc))
 	}
 
 ###################################################################################
 ###################################################################################
 
+
+#Function to bootstrap susceptibility of taxa
+boot.susc <- function(turns_out){
+	#turns = output from call to 'turns'; NB: must include TaxonType column
+	
+	types <- levels(turns_out$TaxonType)
+	sens <- susc <- matrix(NA, nrow = length(types), ncol = 3)
+	for(i in 1:length(types)){
+		rawvals <- turns_out$turn.point[turns_out$TaxonType == types[i]]
+		binvals <- !is.na(rawvals)
+		turnvals <- rawvals[!is.na(rawvals)]
+		sums <- means <- NULL
+		for(k in 1:1000){
+			sums[k] <- sum(sample(binvals, size = length(binvals), replace = TRUE)) / length(binvals)
+			means[k] <- 1 - mean(sample(turnvals, size = length(binvals), replace = TRUE)) / 100
+			}
+		sens[i, ] <- quantile(sums, probs = c(0.025, 0.5, 0.975))
+		susc[i, ] <- quantile(means, probs = c(0.025, 0.5, 0.975))
+		}
+	sens <- data.frame(sens)
+	susc <- data.frame(susc)
+	rownames(sens) <- rownames(susc) <- types
+	names(sens) <- names(susc) <- c('z025', 'z5', 'z975')
+	
+	return(list(sens = sens, susc = susc))
+	}
+
+###################################################################################
+###################################################################################
