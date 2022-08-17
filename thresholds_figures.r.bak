@@ -26,13 +26,16 @@
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
 	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
 	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
+		bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
 
 #Summary calculations
+#	full_funcs <- expand.funcs(func.groups)
 	ecdf_out <- cdf(turn_points$turn.point)
 	ecdf_func <- cdf(func_points$turn.point)
 	model_fits <- fitted.matrix(models = fitted_thresh)
 	func_fits <- fitted.matrix(models = fitted_func)
 	turn_points <- assign.taxon(dataset = turn_points, taxon_table = taxa)
+	resil <- resil.dat(turns = turn_points$dataset, bayes = bayes_results)
 
 
 ##FIGURE 1: MAIN RESULTS
@@ -53,10 +56,6 @@ png('figures/fig1.png', width = 800, height = 800)
 			xlab = '', cex.lab = 2.5, cex.axis = 2)
 		#Functional groups
 		lines(ecdf_func$x, ecdf_func$prop, lwd = 5 , col = pal[1])
-		
-		#Thresholds
-	#	plot.breaks(x = ecdf_out$x, y = ecdf_out$prop, pch = 21, cex = 5, lwd = 2 )
-	#	plot.breaks(ecdf_func$x, ecdf_func$prop, pch = 21, cex = 5, lwd = 2 )
 		
 		legend('bottomleft', legend = c('taxa', 'functional groups'), 
 			pch = c(22,22),
@@ -152,57 +151,92 @@ png('figures/fig1.png', width = 800, height = 800)
 
 
 ##FIGURE 2 - TAXONOMIC SENSITIVITY
-png('figures/fig2.png', width = 400, height = 400)
+png('figures/fig2.png', width = 800, height = 400)
 {
 
+	par(mfrow = c(1,2))
 	par(oma = c(0, 0, 0, 0))
-	par(mai = c(0.8, 1.0, 0.3, 0.3))
+	par(mai = c(1, 1.0, 0.3, 0.3))
 	pal <- paletteer_d("ggthemes::excel_Aspect")
 
-	#Proportion taxa with turning points
-	turn_points$dataset$TaxonType <- factor(turn_points$dataset$TaxonType, levels = c('plant', 'invertebrate', 
-		'mammal', 'bird', 'reptile', 'amphibian', 'fish'))
-	func <- function(x) sum(!is.na(x))/length(x)
-	prop_imp <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
-	mean.turn <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) 	#Mean turning point
-	
-	#Plot figure
-	plot(mean.turn, prop_imp, cex.axis = 2,
-		xlim = c(0,40), ylim = c(0.3,0.9), xlab = '', ylab = '')
-		
-	#Plot images
 	plant<-readPNG("data/leaf.png")
-	grid.raster(plant, x=0.2 + 0.72*mean.turn[1]/40, y=0.16 + 0.76*(prop_imp[1]-0.3)/0.6, width=0.1)
-
 	insect<-readPNG("data/invert.png")
-	grid.raster(insect, x=0.2 + 0.72*mean.turn[2]/40, y=0.16 + 0.76*(prop_imp[2]-0.3)/0.6, width=0.1)
-
 	mammal<-readPNG("data/mammal.png")
-	grid.raster(mammal, x=0.2 + 0.72*mean.turn[3]/40, y=0.16 + 0.76*(prop_imp[3]-0.3)/0.6, width=0.1)
-
 	bird<-readPNG("data/aves.png")
-	grid.raster(bird, x=0.2 + 0.72*mean.turn[4]/40, y=0.16 + 0.76*(prop_imp[4]-0.3)/0.6, width=0.1)
-
 	reptile<-readPNG("data/reptile.png")
-	grid.raster(reptile, x=0.2 + 0.72*mean.turn[5]/40, y=0.16 + 0.76*(prop_imp[5]-0.3)/0.6, width=0.1)
-
 	amphib<-readPNG("data/frog.png")
-	grid.raster(amphib, x=0.2 + 0.72*mean.turn[6]/40, y=0.16 + 0.76*(prop_imp[6]-0.3)/0.6, width=0.1)
-	
 	fish<-readPNG("data/fish.png")
-	grid.raster(fish, x=0.2 + 0.72*mean.turn[7]/40, y=0.16 + 0.76*(prop_imp[7]-0.3)/0.6, width=0.1)
 
-	#Add arrows
-	arrows(x = 35, y = 0.9, x1 = 5, y1 = 0.9, lwd = 2, angle = 20, length = 0.15, col = pal[6])
-	text(x = 20, y = 0.88, labels = 'increasing sensitivity', adj = 0.5, cex = 1.5, col = pal[6])
-	arrows(x = 40, y = 0.5, x1 = 40, y1 = 0.9, lwd = 2, angle = 20, length = 0.15, col = pal[2])
-	text(x = 38, y = 0.7, labels = 'increasing susceptibility', adj = 0.5, cex = 1.5, srt = 270, col = pal[2])
-	arrows(x=7, y = 0.71, x1 = 30, y1 = 0.45, lwd=3, angle = 20, length = 0.15, col = pal[4])
-	text(x = 17, y = 0.57, labels = 'increasing resilience', adj = 0.5, cex = 1.5, srt = -38, col = pal[4])
+	#Panel A: Proportion taxa with turning points
+	{
+		turn_points$dataset$TaxonType <- factor(turn_points$dataset$TaxonType, levels = c('plant', 'invertebrate', 
+			'mammal', 'bird', 'reptile', 'amphibian', 'fish'))
+		func <- function(x) sum(!is.na(x))/length(x)
+		prop_imp <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
+		mean.turn <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) 	#Mean turning point
+		
+		#Plot figure
+		plot(mean.turn, prop_imp, cex.axis = 2,
+			xlim = c(0,40), ylim = c(0.3,0.9), xlab = '', ylab = '')
+		
+		x.scale <- function(x) 0.11 + 0.342*(x/40)
+		y.scale <- function(x) 0.19 + 0.73* ((x-0.3)/(0.9-0.3))
+			
+		#Plot images
+		grid.raster(plant, x=x.scale(mean.turn[1]), y=y.scale(prop_imp[1]), width = 0.05)
+		grid.raster(insect, x=x.scale(mean.turn[2]), y=y.scale(prop_imp[2]), width = 0.05)
+		grid.raster(mammal, x=x.scale(mean.turn[3]), y=y.scale(prop_imp[3]), width = 0.05)
+		grid.raster(bird, x=x.scale(mean.turn[4]), y=y.scale(prop_imp[4]), width = 0.05)
+		grid.raster(reptile, x=x.scale(mean.turn[5]), y=y.scale(prop_imp[5]), width = 0.05)
+		grid.raster(amphib, x=x.scale(mean.turn[6]), y=y.scale(prop_imp[6]), width = 0.05)
+		grid.raster(fish, x=x.scale(mean.turn[7]), y=y.scale(prop_imp[7]), width = 0.05)
 
-	mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
-	mtext('Proportion taxa impacted', 2, line = 3, cex = 2)
+		#Add arrows
+		arrows(x = 35, y = 0.9, x1 = 5, y1 = 0.9, lwd = 2, angle = 20, length = 0.15, col = pal[6])
+		text(x = 20, y = 0.88, labels = 'increasing sensitivity', adj = 0.5, cex = 1.5, col = pal[6])
+		arrows(x = 40, y = 0.5, x1 = 40, y1 = 0.9, lwd = 2, angle = 20, length = 0.15, col = pal[2])
+		text(x = 38, y = 0.7, labels = 'increasing susceptibility', adj = 0.5, cex = 1.5, srt = 270, col = pal[2])
+		arrows(x=7, y = 0.71, x1 = 30, y1 = 0.45, lwd=3, angle = 20, length = 0.15, col = pal[4])
+		text(x = 17, y = 0.57, labels = 'increasing resilience', adj = 0.5, cex = 1.5, srt = -38, col = pal[4])
 
+		text(x = -1, y = 0.88, labels = c('(A)'), cex = 2, pos = 4)
+		mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
+		mtext('Proportion taxa impacted', 2, line = 3, cex = 2)
+	}
+	
+	#Panel B: Connection with replicability
+	{
+		plot(resil$bayes_prob, resil$resilience, cex.axis = 2,
+			 xlim = c(0, 0.15), ylim = c(0.2, 1), xlab = '', ylab = '')
+		
+		#Add fitted line
+		resil_mod <- lm(resilience ~ bayes_prob, data = resil)
+		vals <- coef(resil_mod)
+#		abline(vals[1], vals[2], lwd = 2, lty = 2, col = 'black')
+		#Add confidence intervals
+		preds <- as.data.frame(predict(resil_mod, newdata = data.frame(bayes_prob = seq(-0.05, 0.2, 0.01)), interval = 'confidence'))
+		preds$x <- seq(-0.05, 0.2, 0.01)
+#		polygon(x = c(preds$x, rev(preds$x)), y = c(preds$lwr, rev(preds$upr)),
+#			col = alpha(1, 0.1), density = 200)
+	
+		#Plot images
+#		x.scale <- 	function(x) 0.61 + (0.95-0.61)*(((x-0.85) + (1/0.15)*(x-0.85))*0.85)
+		x.scale <- 	function(x) 0.615 + (0.95-0.615)*(x/0.15)
+		y.scale <- 	function(x) 0.2 + 0.72* ((x-0.2)/(1 - 0.2))
+
+		grid.raster(plant, x=x.scale(resil$bayes_prob[1]), y=y.scale(resil$resilience[1]), width=0.05)
+		grid.raster(insect, x=x.scale(resil$bayes_prob[2]), y=y.scale(resil$resilience[2]), width=0.05)
+		grid.raster(mammal, x=x.scale(resil$bayes_prob[3]), y=y.scale(resil$resilience[3]), width=0.05)
+		grid.raster(bird, x=x.scale(resil$bayes_prob[4]), y=y.scale(resil$resilience[4]), width=0.05)
+		grid.raster(reptile, x=x.scale(resil$bayes_prob[5]), y=y.scale(resil$resilience[5]), width=0.05)
+		grid.raster(amphib, x=x.scale(resil$bayes_prob[6]), y=y.scale(resil$resilience[6]), width=0.05)
+		grid.raster(fish, x=x.scale(resil$bayes_prob[7]), y=y.scale(resil$resilience[7]), width=0.05)
+
+		box()
+		text(x = -0.005, y = 0.97, labels = c('(B)'), cex = 2, pos = 4)
+		mtext('Context dependence', 1, line = 3, cex = 2)
+		mtext('Resilience', 2, line = 3, cex = 2)
+	}	
 	dev.off()
 	}
 	
@@ -217,7 +251,8 @@ png('figures/fig3.png', width = 320, height = 800)
 	pal <- paletteer_d("Redmonder::qPBI")
 	
 	#Get and filter data
-	funcs <- arrange.funcplot(func_groups = func.groups, func_points = func_points)
+
+	funcs <- arrange.funcplot(func_groups = func.groups, func_points = func_points, pal = pal)
 
 	#plot figure
 	plot(0,0, xlim = c(-85,180), ylim = c(1, nrow(funcs) + 3), col = 'white', 
@@ -247,6 +282,87 @@ png('figures/fig3.png', width = 320, height = 800)
 			}
 		text(x = -5, y = i, funcs$qualifier [i], cex = 0.8, adj = c(1, 0.5))
 		}
+
+
+
+
+
+#Add resilience data
+	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points$dataset)
+
+
+	
+	keeps <- match(rownames(resil_func), funcs$taxon)
+	resil_keeps <- resil_func[!is.na(keeps), ]
+	funcs$resilience <- NA
+	funcs$resilience[match(rownames(resil_keeps), funcs$taxon)] <- resil_keeps$resilience
+	
+	barplot(funcs$resilience * 100, horiz = TRUE, add = TRUE, width = 0.85, col = alpha('grey', 0.2))
+
+
+
+require(emmeans)
+require(lmtest)
+
+
+	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points$dataset)
+	funcs <- arrange.funcplot(func_groups = func.groups, func_points = func_points)
+	resil_func <- merge(resil_func, funcs)
+	resil_func$category <- factor(resil_func$category, levels = c('Red List status', 
+		'Body mass', 'Physiology', 'Development', 'Movement', 'Sociality', 
+		'Trophic', 'Diet', 'Habitat strata', 'Plant'))
+	cats <- summary(resil_func$category)
+	keeps <- names(cats)[cats >= 5]			#Only retain categories with >=5 estimates
+	resil_dat <- resil_func[which(!is.na(match(resil_func$category, keeps))), ]
+	resil_dat$category <- factor(resil_dat$category, levels = keeps)	
+	
+	#Convert zeros and ones for use in betareg
+	resil_dat[, c(2:4)][resil_dat[, c(2:4)] == 0] <- 0.0001
+	resil_dat[, c(2:4)][resil_dat[, c(2:4)] == 1] <- 0.9999
+
+	mod_resil <- betareg(resilience ~ category, weights = num.taxa, data = resil_dat)
+	lrtest(mod_resil)
+	contrast(emmeans(mod_resil, specs = ~category), method = 'pairwise')
+	
+	mod_sens <- betareg(sensitivity ~ category, weights = num.taxa, data = resil_dat)
+	lrtest(mod_sens)
+	mod_susc <- betareg(susceptibility ~ category, weights = num.taxa, data = resil_dat)
+	lrtest(mod_susc)
+
+
+
+
+	res <- by(resil_dat$resilience, resil_dat$category, mean)
+	sens <- by(resil_dat$sensitivity, resil_dat$category, quantile, probs = c(0.025, 0.5, 0.975))
+	susc <- by(resil_dat$susceptibility, resil_dat$category, quantile, probs = c(0.025, 0.5, 0.975))
+
+	par(oma = c(0, 0, 0, 0))
+	par(mai = c(1, 1.0, 0.3, 0.3))
+	plot(0,0, xlim = c(0.2, 1), ylim = c(0.2, 1), col = 'white', 
+		xlab = '', ylab = '', cex.lab = 2.5, cex.axis = 2)
+
+	for(i in 1:length(sens)){
+		xvals <- sens[i][[1]]
+		yvals <- susc[i][[1]]
+		arrows(xvals[1], yvals[2], xvals[3], yvals[2], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
+		arrows(xvals[2], yvals[1], xvals[2], yvals[3], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
+		points(xvals[2], yvals[2], pch = 19, cex = 5*res[i])
+		text(x = xvals[2]+0.03, y = yvals[2]+0.03, adj = 0, labels = names(sens)[i], cex = 1.2)
+		}
+	
+	legend('bottomright', pch = 19, pt.cex = c(0.4, 0.6, 0.8)*5, legend = c(0.4, 0.6, 0.8),
+		cex = 2, lty = 0, bty = 'n', x.intersp = 0.8)
+	mtext('Sensitivity', 1, line = 3, cex = 2)
+	mtext('Susceptibility', 2, line = 3, cex = 2)
+
+
+
+
+
+
+
+
+
 
 	legend('top', legend = c('increasing', 'decreasing', pchmatch$types), 
 		pch = c(NA, NA, as.numeric(pchmatch$pchtypes)),

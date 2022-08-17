@@ -762,8 +762,10 @@ taxaXfunc <- function(func_groups){
 extract.func <- function(func_groups){
 	#func_groups = functional traits data
 
+	func_groups <- expand.funcs(taxa = func_groups)
+
 	groups <- names(func_groups)
-	#Exclude numeric traits (these have all been categorised and are captured in other fiels)
+	#Exclude numeric traits (these have all been categorised and are captured in other fields)
 	num.col <- NULL
 	for(k in 1:ncol(func_groups)){
 		num.col <- c(num.col, is.numeric(func_groups[, k]))
@@ -775,7 +777,7 @@ extract.func <- function(func_groups){
 	to.retain <- NULL	#Vector to store indices to desired groups
 	func.categ <- NULL	#Vector to record broad categories of groups
 	keeps <- grep('_', groups)
-	exclude.alltaxa <- (1:length(groups))[-keeps]	#functional groups relating to all taxa
+	exclude.alltaxa <- (1:length(groups))[-keeps]	#functional groups relating to individual taxa
 	#Body mass by taxon
 	to.retain <- c(to.retain, grep('BodyMass', groups))
 		#Exclusions
@@ -1038,9 +1040,10 @@ plot.breaks <- function(x, y, add_plot = TRUE, decel.col, ...){
 
 
 #Function to filter and arrange data for plotting functional groups
-arrange.funcplot <- function(func_groups, func_points){
+arrange.funcplot <- function(func_groups, func_points, pal = NA){
 	#func_groups = functional traits data
 	#func_points = output from turns called on functional group data
+	#pal = colour palette for plotting
 
 	funcs <- rename.funcs(func_groups = func_groups, func_points = func_points)
 	funcs <- funcs[!is.na(funcs$turn.point) ,]
@@ -1150,7 +1153,10 @@ expand.funcs <- function(taxa){
 	emptycols <- sapply(taxa, function (k) all(is.na(k)))
 	taxa <- taxa[, !emptycols]
 	
-	return(taxa)
+	#Create categorical versions of numeric traits
+	taxa_cat <- func.cats(taxa = taxa)
+	
+	return(taxa_cat)
 	}
 	
 ###################################################################################
@@ -1179,6 +1185,49 @@ func.cats <- function(taxa){
 	return(taxa)
 	}
 		
+###################################################################################
+###################################################################################
+
+
+#Function to categorise vector of numeric values into quantiles
+cat.data <- function(x, num.cats = 3, reverse = FALSE){
+	#x = vector of numeric values to be categorised
+	#num.cats = number of categories to return
+	#reverse = should high categories be given to low values?
+	
+	if(reverse == TRUE){
+		x <- 0 - x
+		}
+	
+	#rank values
+	stand <- rank(x, na.last = 'keep')
+
+	#category boundaries
+	bounds <- (1 / num.cats * (c(1:(num.cats - 1)))) * max(stand, na.rm = TRUE)
+	
+	#category names
+	if(num.cats == 3 & length(unique(stand)) >= 3){
+		name <- c('high', 'medium', 'low') 
+		}
+	if(num.cats == 2 | length(unique(stand)) == 2){
+		name <- c('high', 'low') 
+		}
+	if(num.cats > 3){
+		name <- c('1st', '2nd', '3rd', paste(c(4:num.cats), 'th', sep = ""))
+		}
+	
+	#categorise data
+	cats <- rep(NA, length(x))
+	cats[stand >= bounds[length(bounds)]] <- name[1]
+	cats[stand < bounds[1]] <- name[length(name)]
+	if(num.cats > 2){
+		for (i in length(bounds):2)
+			cats[stand < bounds[i] & stand >= bounds[i-1]] <- name[i]
+		}
+	
+	return(as.factor(cats))
+	}
+
 ###################################################################################
 ###################################################################################
 
@@ -1333,63 +1382,136 @@ taxon.dataset <- function(full_data){
 ###################################################################################
 
 
+#Function to generate taxon resilience summary data
+resil.dat <- function(turns, bayes, grouping = 'TaxonType', full_taxa = NA){
+	#turns = output from call to 'turns'
+	#bayes = output from Bayesian analysis (replicability MS)
+	#grouping
+	#full_taxa = full taxonomic details of all taxa in analyses
 
+	#Define internal functions
+	proportion <- function(x) sum(!is.na(x)) / length(x)
+	count.samp <- function(x) sum(!is.na(x))
+	prop.generalist <- function(x) sum(x > 0.05) / length(x)
 
-
-
-
-
-
-
-
-
-#####################################################################
-##NOT USED###########################
-#######################################
-#######################################
-#######################################
-#######################################
-
-
-
-#Function to extract thresholds per functional group
-func.thresholds <- function(func_groups, turns_taxa){
-	#func_groups = functional traits data
-	#turns_taxa = output from call to turns that used individual taxa
-
-	taxa.func <- taxaXfunc(func_groups = func_groups)	#list of taxa per functional group
-	turns <- rates <- data.frame(matrix(NA, nrow = 0, ncol = 3))
-	for(i in 1:length(taxa.func)){
-		print(paste('Working on functional group', i, 'out of', length(taxa.func)))
-		#Extract data
-		taxa <- taxa.func[[i]]
-		taxinds <- match(taxa, turns_taxa$taxon)
-		taxinds <- taxinds[!is.na(taxinds)]
-		models <- turns_taxa[taxinds, ]
-		
-		#Construct CDFs
-		turnsCDF <- cdf(data = models$turn.point, x_range = c(0:100))
-		ratesCDF <- cdf(data = models$maxrate, x_range = c(0:100))
-		
-		#Breakpoints
-		turn_breaks <- try(plot.breaks(x = turnsCDF$x, y = turnsCDF$prop, add_plot = FALSE), silent = TRUE)
-		rate_breaks <- try(plot.breaks(x = ratesCDF$x, y = ratesCDF$prop, add_plot = FALSE), silent = TRUE)
-		
-		if(class(turn_breaks) != "try-error"){			
-			turns <- rbind(turns, turn_breaks)
-			}
-		if(class(rate_breaks) != "try-error"){			
-			rates <- rbind(rates, rate_breaks)
-			}
-		rm(turn_breaks, rate_breaks)
+	#Join Bayes probability of correct slope to main results
+	turns$bayes.prob <- bayes$prob.slope[match(turns$taxon, bayes$taxon)]
+	
+	#Add grouping details
+	if(grouping != 'TaxonType'){
+		coltarg <- match(grouping, names(taxa))
+		turns_group <- full_taxa[match(turns$taxon, taxa$taxon_name), coltarg]
+		turns <- cbind(turns, turns_group)
+		names(turns)[ncol(turns)] <- grouping
 		}
 	
-	return(list(turn.breaks = turns, rate.breaks = rates))
+	#Assign generalists a 'turning point' at 100 % AGB removal
+	gen_turns <- turns$turn.point
+	gen_turns[turns$pval > 0.05] <- 100
+
+	#Calculate summaries
+	group_targ <- match(grouping, names(turns))
+	prop_imp <- by(turns$turn.point, factor(turns[, group_targ]), FUN = proportion)	#Proportion taxa with turning points
+	mean_turn <- by(gen_turns, factor(turns[, group_targ]), FUN = mean, na.rm = TRUE) 	
+	bayes_prob <- by(turns$bayes.prob, factor(turns[, group_targ]), FUN = mean, na.rm = TRUE) 	
+	samp_size <- by(turns$bayes.prob, factor(turns[, group_targ]), FUN = count.samp) 	
+
+	#Scale data
+	scale_imp <- array(prop_imp)
+	scale_turn <- 1-array(mean_turn/100)
+	scale_resil <- 1 - (scale_imp * scale_turn)
+	new_samp <- array(samp_size)
+	
+	out <- data.frame(prop_imp = array(prop_imp), mean_turn = array(mean_turn), 
+		susceptibility = scale_imp, sensitivity = scale_turn, 
+		resilience = scale_resil, 
+		bayes_prob = array(bayes_prob), bayes_samp = new_samp)
+	rownames(out) <- names(prop_imp)
+	
+	return(out)
 	}
 
 ###################################################################################
 ###################################################################################
 
 
+#Function to calculate resilience
+resil.calc <- function(turns){
+	#Turns = output from call to 'turns', subsetted to contain just the taxa you want to group and calculate resilience for
+	
+	proportion <- function(x) sum(!is.na(x)) / length(x)
 
+	#Assign generalists a 'turning point' at 100 % AGB removal
+	gen_turns <- turns$turn.point
+	gen_turns[turns$pval > 0.05] <- 100
+	
+	#Calculate resilience
+	scale_imp <- proportion(x = turns$turn.point)
+	mean_turns <- mean(gen_turns)
+	scale_turn <- 1- mean_turns/100
+	scale_resil <- 1 - (scale_imp * scale_turn)
+	new_samp <- nrow(turns)
+	
+	outNew <- data.frame(susceptibility = scale_imp, sensitivity = scale_turn, 
+		resilience = scale_resil, num.taxa = new_samp)
+	
+	return(outNew)
+		}
+
+###################################################################################
+###################################################################################
+
+
+#Function to extract resilience per functional group
+resil.func <- function(func_groups, func_points, turns){
+	#func_groups = functional traits data
+	#func_points = output from turns called on functional group data
+	#turns = output from call to 'turns'
+
+	#Arrange and extract key data
+	funcs <- arrange.funcplot(func_groups = func_groups, func_points = func_points)
+	func_groups <- expand.funcs(taxa = func_groups)
+	
+	subdat <- func_groups[ , unique(match(funcs$shortname, names(func_groups)))]
+	
+	#Output matrix
+	out <- data.frame(susceptibility = NULL, sensitivity = NULL, 
+		resilience = NULL, num.taxa = NULL)
+	
+	for(i in 1:ncol(subdat)){		#For each function type
+		if(length(unique(subdat[ , i])) == 1){		#If there's only one category of function
+			targs <- rownames(subdat)[!is.na(subdat[ , i])]
+			taxa.match <- match(targs, turns$taxon)
+			taxa.match <- taxa.match[!is.na(taxa.match)]
+			targs.turns <- turns[taxa.match, ]
+			outNew <- resil.calc(targs.turns)
+			rownames(outNew) <- names(subdat)[i]
+			out <- rbind(out, outNew)
+			}else{
+				cats <- unique(subdat[ , i])
+				cats<- cats[!is.na(cats)]
+				###For each value of the trait.... generate resilience separately
+				for(k in 1:length(cats)){
+					targs <- rownames(subdat)[subdat[,i] == cats[k]]
+					targs <- targs[!is.na(targs)]
+					taxa.match <- match(targs, turns$taxon)
+					taxa.match <- taxa.match[!is.na(taxa.match)]
+					targs.turns <- turns[taxa.match, ]
+					outNew <- resil.calc(targs.turns)
+					rownames(outNew) <- paste(names(subdat)[i], '_', cats[k], sep = "")
+					out <- rbind(out, outNew)
+					}
+				}
+		}
+	
+	out$taxon <- rownames(out)
+	out$category <- factor(out$category, levels = c('Red List status', 
+		'Body mass', 'Physiology', 'Development', 'Movement', 'Sociality', 
+		'Trophic', 'Diet', 'Habitat strata', 'Plant'))
+	
+	return(out)
+	}
+
+###################################################################################
+###################################################################################
 

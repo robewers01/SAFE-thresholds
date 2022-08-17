@@ -4,6 +4,8 @@
 	setwd("C:/Users/rewers/OneDrive - Imperial College London/work/papers/in prep/ewers et al - SAFE meta-analysis/SAFE-thresholds/")
 	source("thresholds_functions.r")
 
+	require(ape)
+	require(betareg)
 #	require(safedata)
 #	set_safe_dir("C:/Users/rewers/OneDrive - Imperial College London/work/SAFE project - private/safedata",update = FALSE)
 
@@ -14,10 +16,13 @@
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
 	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
 	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
+	bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
 	
 #Adjust data, fit models and calculate summaries
-	func.groups <- expand.funcs(taxa = func.groups)		#Expand functions into taxonomic group-specific values
-	func.groups <- func.cats(taxa = func.groups)		#Convert numeric traits into categorical
+#	func.groups <- expand.funcs(taxa = func.groups)		#Expand functions into taxonomic group-specific values
+#	func.groups <- func.cats(taxa = func.groups)		#Convert numeric traits into categorical
+
+
 #	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
 #		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000').
 #		func_data = func.groups)
@@ -142,6 +147,27 @@
 		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) 	#Mean turning point
 
 
+#Connection with replicability
+	resil <- print(resil.dat(turns = turn_points$dataset, bayes = bayes_results, 
+		grouping = 'TaxonType', full_taxa = taxa))
+	summary(betareg(resilience ~ bayes_prob, data = resil))
+
+
+plot(resil$bayes_prob, resil$resilience)
+
+
+
+
+
+
+resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points$dataset)
+
+
+
+
+
+
+
 #Functional composition - example taxa
 	#Habitat strata generalists
 	find.egs(Function = 'StrataGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
@@ -188,8 +214,25 @@
 	#Number taxa represented in >1 survey
 		modelled <- taxaXdata[match(fitted_thresh$taxon, rownames(taxaXdata)),]	#Subset to just modelled taxa
 		sum(apply(X = modelled, MARGIN = 1, FUN = function(x) sum(!is.na(x))) > 1)	#Number of taxa in multiple surveys
+
+
+#Fig S1 caption
 	#Number of orders in all surveys combined
 		length(phylo$tr$tip.label)
 	#Number of orders containing taxa that were analysed
 		sum(!is.na(phylo$numbers3$propTax))
 
+
+#Methods
+	#Number taxa analysed with GLMM
+		summary(factor(fitted_thresh$modtype))
+		summary(factor(fitted_thresh$modtype)) / (nrow(fitted_thresh) - sum(is.na(fitted_thresh$modtype)))
+	#Number functional groups analysed with GLMM
+		summary(factor(fitted_func$modtype))
+		summary(factor(fitted_func$modtype)) / (nrow(fitted_func) - sum(is.na(fitted_func$modtype)))
+	
+	
+
+#Table S1
+	data_sum
+	
