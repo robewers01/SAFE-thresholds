@@ -586,13 +586,13 @@ assign.taxon <- function(dataset, taxon_table = NA){
 		
 	#Assign taxonomic categories
 	TaxonType <- rep(NA, nrow(matched.taxa))
-	TaxonType[matched.taxa$kingdom == 'Plantae'] <- 'plant'
-	TaxonType[matched.taxa$class == 'Mammalia'] <- 'mammal'
-	TaxonType[matched.taxa$class == 'Aves'] <- 'bird'
-	TaxonType[matched.taxa$class == 'Reptilia'] <- 'reptile'
-	TaxonType[matched.taxa$class == 'Amphibia'] <- 'amphibian'
-	TaxonType[matched.taxa$class == 'Actinopterygii'] <- 'fish'
-	TaxonType[matched.taxa$phylum == 'Platyhelminthes' | matched.taxa$phylum == 'Nematoda' | matched.taxa$phylum == 'Annelida' | matched.taxa$phylum == 'Arthropoda' | matched.taxa$phylum == 'Mollusca' | matched.taxa$phylum == 'Nematomorpha'] <- 'invertebrate'
+	TaxonType[matched.taxa$kingdom == 'Plantae'] <- 'Plant'
+	TaxonType[matched.taxa$class == 'Mammalia'] <- 'Mammal'
+	TaxonType[matched.taxa$class == 'Aves'] <- 'Bird'
+	TaxonType[matched.taxa$class == 'Reptilia'] <- 'Reptile'
+	TaxonType[matched.taxa$class == 'Amphibia'] <- 'Amphibian'
+	TaxonType[matched.taxa$class == 'Actinopterygii'] <- 'Fish'
+	TaxonType[matched.taxa$phylum == 'Platyhelminthes' | matched.taxa$phylum == 'Nematoda' | matched.taxa$phylum == 'Annelida' | matched.taxa$phylum == 'Arthropoda' | matched.taxa$phylum == 'Mollusca' | matched.taxa$phylum == 'Nematomorpha'] <- 'Invertebrate'
 	TaxonType[matched.taxa$kingdom == 'Chromista'] <- 'microbe'
 	TaxonType[matched.taxa$kingdom == 'Fungi'] <- 'fungi'
 	matched.taxa$TaxonType <- TaxonType
@@ -1129,7 +1129,7 @@ expand.funcs <- function(taxa){
 	#taxa = functional groups raw data
 	
 	taxon_cat <- sort(unique(taxa$TaxonCat))
-	taxon_groups <- c('amphibian', 'bird', 'fish', 'mammal', 'reptile')		#Only groups not already represented in taxon_cat
+	taxon_groups <- c('Amphibian', 'Bird', 'Fish', 'Mammal', 'Reptile')		#Only groups not already represented in taxon_cat
 	for(i in 16:ncol(taxa)){
 		orig <- taxa[, i]						#Select the trait
 		for(k in 1:length(taxon_cat)){			#Iterate through each taxon category
@@ -1534,9 +1534,9 @@ boot.susc <- function(turns_out){
 	types <- levels(turns_out$TaxonType)
 	sens <- susc <- matrix(NA, nrow = length(types), ncol = 3)
 	for(i in 1:length(types)){
-		rawvals <- turns_out$turn.point[turns_out$TaxonType == types[i]]
+		rawvals <- turnvals <- turns_out$turn.point[turns_out$TaxonType == types[i]]
 		binvals <- !is.na(rawvals)
-		turnvals <- rawvals[!is.na(rawvals)]
+		turnvals[is.na(turnvals)] <- 100
 		sums <- means <- NULL
 		for(k in 1:1000){
 			sums[k] <- sum(sample(binvals, size = length(binvals), replace = TRUE)) / length(binvals)

@@ -29,7 +29,6 @@
 		bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
 
 #Summary calculations
-#	full_funcs <- expand.funcs(func.groups)
 	ecdf_out <- cdf(turn_points$turn.point)
 	ecdf_func <- cdf(func_points$turn.point)
 	model_fits <- fitted.matrix(models = fitted_thresh)
@@ -161,11 +160,13 @@ png('figures/fig2.png', width = 800, height = 400)
 
 	#Panel A: Taxonomic resilience
 	{
-		turn_points$dataset$TaxonType <- factor(turn_points$dataset$TaxonType, levels = c('plant', 'invertebrate', 
-			'mammal', 'bird', 'reptile', 'amphibian', 'fish'))
+		turn_points$dataset$TaxonType <- factor(turn_points$dataset$TaxonType, levels = c('Plant', 'Invertebrate', 
+			'Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish'))
 		func <- function(x) sum(!is.na(x))/length(x)
 		prop_imp <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
-		mean.turn <- 1 - by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) / 100	#Mean turning point
+		gen_turns <- turn_points$dataset$turn.point
+		gen_turns[is.na(gen_turns)] <- 100
+		mean.turn <- 1 - by(gen_turns, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) / 100	#Mean turning point
 		tax_res <- 1 - (prop_imp * mean.turn)
 		
 		#Plot figure
@@ -183,22 +184,25 @@ png('figures/fig2.png', width = 800, height = 400)
 		
 		#Add names
 		for(i in 1:length(prop_imp)){
-			if(names(prop_imp)[i] == 'amphibian'){
-				text(x = mean.turn[i], y = prop_imp[i] - 0.06, adj = 0.5, labels = names(mean.turn)[i], cex = 1.2)
+			if(names(prop_imp)[i] == 'Invertebrate'){
+				text(x = mean.turn[i] + 0.03, y = prop_imp[i] - 0.03, adj = 0, labels = names(mean.turn)[i], cex = 1.2)
 				}
-			if(names(prop_imp)[i] == 'reptile'){
+			if(names(prop_imp)[i] == 'Bird'){
+				text(x = mean.turn[i] - 0.03, y = prop_imp[i] - 0.03, adj = 0.5, labels = names(mean.turn)[i], cex = 1.2)
+				}
+			if(names(prop_imp)[i] == 'Reptile'){
 				text(x = mean.turn[i] - 0.03, y = prop_imp[i] + 0.03, adj = 1, labels = names(mean.turn)[i], cex = 1.2)
 				}
-			if(names(prop_imp)[i] != 'reptile' & names(prop_imp)[i] != 'amphibian'){
-				text(x = mean.turn[i] - 0.03, y = prop_imp[i] - 0.03, adj = 1, labels = names(mean.turn)[i], cex = 1.2)
+			if(names(prop_imp)[i] != 'Reptile' & names(prop_imp)[i] != 'Bird' & names(prop_imp)[i] != 'Invertebrate'){
+				text(x = mean.turn[i] + 0.03, y = prop_imp[i] + 0.03, adj = 0, labels = names(mean.turn)[i], cex = 1.2)
 				}
 			}
 				
-		legend('topleft', pch = 19, pt.cex = c(0.4, 0.6, 0.8)*5, legend = c(0.4, 0.6, 0.8),
+		legend('bottomright', pch = 19, pt.cex = c(0.4, 0.6, 0.8)*5, legend = c(0.4, 0.6, 0.8),
 			cex = 2, lty = 0, bty = 'n', x.intersp = 0.8)
 
 		mtext('Susceptibility', 2, line = 3, cex = 2)
-		text(x = 0.98, y = 0.98, labels = c('(A)'), cex = 2)
+		text(x = 0.18, y = 0.98, labels = c('(A) Taxonomic resilience'), cex = 2, pos = 4)
 	}
 	
 	#Panel B: Functional resilience
@@ -223,7 +227,7 @@ png('figures/fig2.png', width = 800, height = 400)
 		text(x = xvals[2]+0.03, y = yvals[2]+0.03, adj = 0, labels = names(resil_func$sens)[i], cex = 1.2)
 		}
 
-	text(x = 0.98, y = 0.98, labels = c('(B)'), cex = 2)
+	text(x = 0.18, y = 0.98, labels = c('(B) Functional resilience'), cex = 2, pos = 4)
 	}
 	
 	#Axis label

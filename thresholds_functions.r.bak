@@ -586,13 +586,13 @@ assign.taxon <- function(dataset, taxon_table = NA){
 		
 	#Assign taxonomic categories
 	TaxonType <- rep(NA, nrow(matched.taxa))
-	TaxonType[matched.taxa$kingdom == 'Plantae'] <- 'plant'
-	TaxonType[matched.taxa$class == 'Mammalia'] <- 'mammal'
-	TaxonType[matched.taxa$class == 'Aves'] <- 'bird'
-	TaxonType[matched.taxa$class == 'Reptilia'] <- 'reptile'
-	TaxonType[matched.taxa$class == 'Amphibia'] <- 'amphibian'
-	TaxonType[matched.taxa$class == 'Actinopterygii'] <- 'fish'
-	TaxonType[matched.taxa$phylum == 'Platyhelminthes' | matched.taxa$phylum == 'Nematoda' | matched.taxa$phylum == 'Annelida' | matched.taxa$phylum == 'Arthropoda' | matched.taxa$phylum == 'Mollusca' | matched.taxa$phylum == 'Nematomorpha'] <- 'invertebrate'
+	TaxonType[matched.taxa$kingdom == 'Plantae'] <- 'Plant'
+	TaxonType[matched.taxa$class == 'Mammalia'] <- 'Mammal'
+	TaxonType[matched.taxa$class == 'Aves'] <- 'Bird'
+	TaxonType[matched.taxa$class == 'Reptilia'] <- 'Reptile'
+	TaxonType[matched.taxa$class == 'Amphibia'] <- 'Amphibian'
+	TaxonType[matched.taxa$class == 'Actinopterygii'] <- 'Fish'
+	TaxonType[matched.taxa$phylum == 'Platyhelminthes' | matched.taxa$phylum == 'Nematoda' | matched.taxa$phylum == 'Annelida' | matched.taxa$phylum == 'Arthropoda' | matched.taxa$phylum == 'Mollusca' | matched.taxa$phylum == 'Nematomorpha'] <- 'Invertebrate'
 	TaxonType[matched.taxa$kingdom == 'Chromista'] <- 'microbe'
 	TaxonType[matched.taxa$kingdom == 'Fungi'] <- 'fungi'
 	matched.taxa$TaxonType <- TaxonType
@@ -1129,7 +1129,7 @@ expand.funcs <- function(taxa){
 	#taxa = functional groups raw data
 	
 	taxon_cat <- sort(unique(taxa$TaxonCat))
-	taxon_groups <- c('amphibian', 'bird', 'fish', 'mammal', 'reptile')		#Only groups not already represented in taxon_cat
+	taxon_groups <- c('Amphibian', 'Bird', 'Fish', 'Mammal', 'Reptile')		#Only groups not already represented in taxon_cat
 	for(i in 16:ncol(taxa)){
 		orig <- taxa[, i]						#Select the trait
 		for(k in 1:length(taxon_cat)){			#Iterate through each taxon category
@@ -1520,10 +1520,7 @@ resil.func <- function(func_groups, func_points, turns){
 	sens <- by(resil_dat$sensitivity, resil_dat$category, quantile, probs = c(0.025, 0.5, 0.975))
 	susc <- by(resil_dat$susceptibility, resil_dat$category, quantile, probs = c(0.025, 0.5, 0.975))
 
-
-
-
-	return(out)
+	return(list(summary = out, res = res, sens = sens, susc = susc))
 	}
 
 ###################################################################################
