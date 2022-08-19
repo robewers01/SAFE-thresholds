@@ -29,12 +29,7 @@
 		bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
 
 #Summary calculations
-	ecdf_out <- cdf(turn_points$turn.point)
-	ecdf_func <- cdf(func_points$turn.point)
-	model_fits <- fitted.matrix(models = fitted_thresh)
-	func_fits <- fitted.matrix(models = fitted_func)
-	turn_points <- assign.taxon(dataset = turn_points, taxon_table = taxa)
-	resil <- resil.dat(turns = turn_points$dataset, bayes = bayes_results)
+#	resil <- resil.dat(turns = turn_points$dataset, bayes = bayes_results)
 
 
 ##FIGURE 1: MAIN RESULTS
@@ -48,6 +43,8 @@ png('figures/fig1.png', width = 800, height = 800)
 
 	#Panel A: Cumulative distribution function
 	{
+		ecdf_out <- cdf(turn_points$turn.point)
+		ecdf_func <- cdf(func_points$turn.point)
 		#Taxa
 		plot(ecdf_out$x, ecdf_out$prop, type = "l", lwd = 5 , col = pal[4],
 			ylim = c(0,0.8), 
@@ -70,6 +67,9 @@ png('figures/fig1.png', width = 800, height = 800)
 
 	#Panel B: mean occurrence
 	{
+		model_fits <- fitted.matrix(models = fitted_thresh)
+		func_fits <- fitted.matrix(models = fitted_func)
+		
 		plot(0,0, xlim = c(0,100), ylim = c(0,1), col = 'white', 
 			xlab = '', ylab = '',  cex.lab = 2.5, cex.axis = 2)
 
@@ -95,6 +95,8 @@ png('figures/fig1.png', width = 800, height = 800)
 
 	#Panel C: turning points density
 	{
+		turn_points <- assign.taxon(dataset = turn_points, taxon_table = taxa)
+		
 		#Taxa
 		taxa_turn <- turn_points$dataset$turn.point[!is.na(turn_points$dataset$turn.point)]
 		plot(density(taxa_turn), xlim = c(0,100), main = "", xlab = '', ylab = '',
@@ -150,7 +152,7 @@ png('figures/fig1.png', width = 800, height = 800)
 
 
 ##FIGURE 2 - TAXONOMIC SENSITIVITY
-png('figures/fig2.png', width = 800, height = 400)
+png('figures/fig2.png', width = 800, height = 800)
 {
 
 	par(mfrow = c(1,2))
@@ -239,7 +241,7 @@ png('figures/fig2.png', width = 800, height = 400)
 
 
 ##FIGURE 3 - FUNCTIONAL THRESHOLDS
-png('figures/fig3.png', width = 320, height = 800)
+png('figures/fig3.png', width = 500, height = 500)
 {
 	par(mai = c(0.8, 0.1, 0.1, 0.1))
 	par(oma = c(0, 0, 0, 0))
@@ -247,26 +249,16 @@ png('figures/fig3.png', width = 320, height = 800)
 	pal <- paletteer_d("Redmonder::qPBI")
 	
 	#Get and filter data
-
-	funcs <- arrange.funcplot(func_groups = func.groups, func_points = func_points, pal = pal)
-
+	funcs_full <- arrange.funcplot(func_groups = func.groups, func_points = func_points, pal = pal)
+	funcs <- funcs_full$summary
+	pchmatch <- funcs_full$pchmatch
+	
 	#plot figure
-	plot(0,0, xlim = c(-85,180), ylim = c(1, nrow(funcs) + 3), col = 'white', 
+	plot(0,0, xlim = c(-55,242), ylim = c(1, nrow(funcs) + 10), col = 'white', 
 		xlab = '', ylab = '',  yaxt = 'n', xaxt = 'n', cex.lab = 2.5, cex.axis = 2)
-	axis(1, at = c(0, 50, 100), cex.axis = 2)
+	axis(1, at = c(0, 50, 100), cex.axis = 1.5)
+	axis(1, at = c(140, 190, 240), labels = c('0.0', '0.5', '1.0'), cex.axis = 1.5)
 
-	#Add categories
-	cats <- unique(funcs$category)
-		cats <- cats[!is.na(cats)]
-	for(k in 1:length(cats)){
-		ymin <- min(which(funcs$category == cats[k])) - 0.5
-		ymax <- max(which(funcs$category == cats[k])) + 0.5
-		ymid <- mean(c(ymin, ymax))
-		polycol <- funcs$col[which(funcs$category == cats[k])[1]]
-		polygon(x = c(-100, -100, 200, 200), y = c(ymin, ymax, ymax, ymin),
-			col = alpha(polycol, 0.1), density=100, border = NA)
-		text(x = 145, y = ymid, cats[k], cex = 1, adj = c(0.5))
-		}
 	#Add data
 	for(i in 1:nrow(funcs)){
 		points(x = funcs$turn.point[i], y = i, pch = funcs$pch[i], col = funcs$col[i], lty = funcs$lty[i])
@@ -276,45 +268,56 @@ png('figures/fig3.png', width = 320, height = 800)
 				col = funcs$col[i], lty = funcs$lty[i],
 				angle = 20, length =0.07)
 			}
-		text(x = -5, y = i, funcs$qualifier [i], cex = 0.8, adj = c(1, 0.5))
+		text(x = -7, y = i, funcs$qualifier [i], cex = 0.6, adj = c(1, 0.5), col = funcs$col[i])
 		}
 
-
-
-
-
-#Add resilience data
-	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points$dataset)
-
-
+	#Add resilience data
+	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points)
+	new <- merge(funcs, resil_func$summary)
+	new <- new[order(new$category, new$qualifier, new$TaxType, new$turn.point), ]
 	
-	keeps <- match(rownames(resil_func), funcs$taxon)
-	resil_keeps <- resil_func[!is.na(keeps), ]
-	funcs$resilience <- NA
-	funcs$resilience[match(rownames(resil_keeps), funcs$taxon)] <- resil_keeps$resilience
-	
-	barplot(funcs$resilience * 100, horiz = TRUE, add = TRUE, width = 0.85, col = alpha('grey', 0.2))
+	xmin = 140
+	for(i in 1:nrow(new)){
+		ymin <- i - 0.4
+		ymax <- i + 0.4
+		xmax <- xmin + new$resilience[i]*100
+		polygon(x = c(xmin, xmin, xmax, xmax), y = c(ymin, ymax, ymax, ymin), 
+			col = alpha(new$col[i], 0.3))
+		points(x = xmin + new$sensitivity[i]*100, i, pch = 19, col = alpha(new$col[i], 0.9))
+		points(x = xmin + new$susceptibility[i]*100, i, pch = 17, col = alpha(new$col[i], 0.9))
+		}
 
+	#Add legend and labels
+	abline(nrow(funcs) + 1, 0, lwd = 1)
+	polygon(x = c(120, 120, 350, 350), y = c(-10, nrow(funcs)+1, nrow(funcs)+1, -10))
+	#Add categories
+	cats <- unique(funcs$category)
+		cats <- cats[!is.na(cats)]
+	yvals <- c(rep(nrow(funcs)+4.5, 4), rep(nrow(funcs)+2.5, 4))
+	xvals <- rep(seq(-18, 201, 63) ,2)
+	for(k in 1:length(cats)){
+		polycol <- funcs$col[which(funcs$category == cats[k])[1]]
+		text(x = xvals[k]+2, y = yvals[k], cats[k], cex = 0.75, adj = 0, col = polycol)
+		points(xvals[k] - 8, yvals[k], pch = 15, cex = 1.5, col = polycol)
+		}
 
-
-	#Still to do...
-		#Add barchart of resilience
-		#Add symbols to barchart to show susceptibility and sensitivity scores
-
-
-
-
-
-
-	legend('top', legend = c('increasing', 'decreasing', pchmatch$types), 
-		pch = c(NA, NA, as.numeric(pchmatch$pchtypes)),
-		lty = c(1, 2, rep(0, nrow(pchmatch))),
-		lwd = c(2,2, rep(1, nrow(pchmatch))),
-		bty = 'n', pt.cex = 1.7, ncol = 3)
-	abline(nrow(funcs) +0.5, 0, lwd = 1)
-	mtext('Biomass reduction (%)', 1, line = 3, cex = 2)
+	legend('top', legend = c('increasing', 'decreasing', pchmatch$types, 'sensitivity', 'susceptibility', ''), 
+		pch = c(NA, NA, as.numeric(pchmatch$pchtypes), 19, 17, NA),
+		lty = c(1, 2, rep(0, nrow(pchmatch)+2), NA),
+		lwd = c(2,2, rep(1, nrow(pchmatch)+2), NA),
+		bty = 'n', pt.cex = 1.2, ncol = 4, x.intersp = 0.6, cex = 0.8)
+	text(x = 110, y = nrow(funcs)-0.5, labels = c('(A)'), cex = 1.2)
+	text(x = 243, y = nrow(funcs)-0.5, labels = c('(B)'), cex = 1.2)
+	mtext('Biomass reduction (%)', 1, line = 2.5, at = 50, cex = 1.3)
+	mtext('Resilience', 1, line = 2.5, at = 190, cex = 1.3)
 	}
 	dev.off()
+
+
+
+
+
+
 
 
 
@@ -382,7 +385,7 @@ png(paste('figures/figS1.png', sep = ""), width = 500, height = 500)
 
 
 ##FIGURE S2 - ANALYSIS METHODS
-png('figures/figS2.png', width = 800, height = 800)
+png('figures/figS2.png', width = 600, height = 800)
 {
 	par(mfrow = c(2,2))
 	par(mai = c(0.8, 0.7, 0.1, 0.3))

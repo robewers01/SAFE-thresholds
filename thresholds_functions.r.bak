@@ -784,7 +784,7 @@ extract.func <- function(func_groups){
 		exclusions <- exclude.alltaxa
 		exclusions <- c(exclusions, which(groups == 'BodyMass_Categorised'))
 	to.retain <- to.retain[is.na(match(to.retain, exclusions))]
-	to.retain <- c(to.retain, to.retain)
+#	to.retain <- c(to.retain, to.retain)
 	func.categ <- rep('Body mass', length(to.retain))
 	#Movement by taxon
 	movement <- grep('Movement', groups)
@@ -819,8 +819,11 @@ extract.func <- function(func_groups){
 	func.categ <- c(func.categ, rep('Red List status', length(iucn[-grep('_', groups[iucn])])))
 	#Development
 	dev <- grep('Development', groups)
-	to.retain <- c(to.retain, dev[-grep('_', groups[dev])])
-	func.categ <- c(func.categ, rep('Development', length(dev[-grep('_', groups[dev])])))
+		#Exclusions
+		exclusions <- exclude.alltaxa
+	dev <- dev[is.na(match(dev, exclusions))]
+	to.retain <- c(to.retain, dev)
+	func.categ <- c(func.categ, rep('Development', length(dev)))
 	#Physiology
 	phys <- grep('Physiology', groups)
 	to.retain <- c(to.retain, phys[-grep('_', groups[phys])])
@@ -847,25 +850,44 @@ extract.func <- function(func_groups){
 	func.categ <- c(func.categ, rep('Trophic', length(dg[1])))
 	#Plants
 	plant <- grep('Plant', groups)
-	to.retain <- c(to.retain, plant[-grep('_plant', groups[plant])])
-	func.categ <- c(func.categ, rep('Plant', length(plant[-grep('_plant', groups[plant])])))
+	to.retain <- c(to.retain, plant[-grep('_Plant', groups[plant])])
+	func.categ <- c(func.categ, rep('Plant', length(plant[-grep('_Plant', groups[plant])])))
 	
 	out <- data.frame(group = groups[to.retain], category = func.categ)
-	#Remove generic vertebrate group
+	#Remove generic vertebrate group (shouldn't be there, but good to check...)
 	out <- out[-grep('vertebrate', out$group), ]
 	#Add taxon column
 	out$taxon <- 'all taxa'
-	out$taxon[grep('bird', out$group)] <- 'bird'
-	out$taxon[grep('invert', out$group)] <- 'invertebrate'
-	out$taxon[grep('amphibian', out$group)] <- 'amphibian'
-	out$taxon[grep('reptile', out$group)] <- 'reptile'
-	out$taxon[grep('mammal', out$group)] <- 'mammal'
-	out$taxon[grep('plant', out$group)] <- 'plant'
-	out$taxon[grep('fish', out$group)] <- 'fish'
+	out$taxon[grep('Bird', out$group)] <- 'Bird'
+	out$taxon[grep('Invert', out$group)] <- 'Invertebrate'
+	out$taxon[grep('Amphibian', out$group)] <- 'Amphibian'
+	out$taxon[grep('Reptile', out$group)] <- 'Reptile'
+	out$taxon[grep('Mammal', out$group)] <- 'Mammal'
+	out$taxon[grep('Plant', out$group)] <- 'Plant'
+	out$taxon[grep('Fish', out$group)] <- 'Fish'
 	
 	return(out)
 	}
 
+###################################################################################
+###################################################################################
+
+
+#Function to ensure all references to TaxonTypes have capitalised first letter
+rename.taxtypes <- function(taxtypes){
+	#taxtypes = vector containing strings that embed TaxonTypes
+	
+	taxtypes <- gsub('amphib', 'Amphib', taxtypes)
+	taxtypes <- gsub('plant', 'Plant', taxtypes)
+	taxtypes <- gsub('reptile', 'Reptile', taxtypes)
+	taxtypes <- gsub('mammal', 'Mammal', taxtypes)
+	taxtypes <- gsub('bird', 'Bird', taxtypes)
+	taxtypes <- gsub('fish', 'Fish', taxtypes)
+	taxtypes <- gsub('invert', 'Invert', taxtypes)
+	
+	return(taxtypes)
+	}
+	
 ###################################################################################
 ###################################################################################
 
@@ -876,10 +898,10 @@ rename.funcs <- function(func_groups, func_points){
 		#func_points = output from turns applied to functional groups
 		
 	newfuncs <- func_points
+	newfuncs$taxon <- rename.taxtypes(newfuncs$taxon)
 	funcs <- extract.func(func_groups)
 	
-	
-	aligned <- sapply(funcs$group, grep, func_points$taxon, value = TRUE)
+	aligned <- sapply(funcs$group, grep, newfuncs$taxon, value = TRUE)
 	aligned.data <- data.frame(matrix(NA, nrow = 0, ncol = 2))
 	for(i in 1:length(aligned)){
 		full <- aligned[[i]]
@@ -1079,7 +1101,7 @@ arrange.funcplot <- function(func_groups, func_points, pal = NA){
 	pchmatch <- data.frame(cbind(types, pchtypes))
 	funcs$pch <- as.numeric(pchmatch$pchtypes[match(funcs$TaxType, pchmatch$types)])
 	
-	return(funcs)
+	return(list(summary = funcs, pchmatch = pchmatch))
 	}
 
 ###################################################################################
@@ -1124,22 +1146,34 @@ func.summary <- function(func_groups){
 ###################################################################################
 
 
+#Function to convert first letter of a string to upper case
+firstup <- function(x) {
+	substr(x, 1, 1) <- toupper(substr(x, 1, 1))
+	x
+	}
+
+###################################################################################
+###################################################################################
+
+
 ##Function to expand functional groups by taxonomic groups
 expand.funcs <- function(taxa){
 	#taxa = functional groups raw data
 	
-	taxon_cat <- sort(unique(taxa$TaxonCat))
-	taxon_groups <- c('Amphibian', 'Bird', 'Fish', 'Mammal', 'Reptile')		#Only groups not already represented in taxon_cat
+	taxa$TaxonType <- firstup(taxa$TaxonType)
+	
+#	taxon_cat <- sort(unique(taxa$TaxonCat))
+	taxon_groups <- c('Plant', 'Invertebrate', 'Amphibian', 'Bird', 'Fish', 'Mammal', 'Reptile')		#Only groups not already represented in taxon_cat
 	for(i in 16:ncol(taxa)){
 		orig <- taxa[, i]						#Select the trait
-		for(k in 1:length(taxon_cat)){			#Iterate through each taxon category
-			tax_ind <- which(taxa$TaxonCat == taxon_cat[k])
-			new_entry <- rep(NA, nrow(taxa))
-			new_entry[tax_ind] <- taxa[tax_ind, i]
-			taxa <- cbind(taxa, new_entry)
-			names(taxa)[ncol(taxa)] <- paste(names(taxa)[i], taxon_cat[k], sep = '_')
-			rm(new_entry)
-			}
+#		for(k in 1:length(taxon_cat)){			#Iterate through each taxon category
+#			tax_ind <- which(taxa$TaxonCat == taxon_cat[k])
+#			new_entry <- rep(NA, nrow(taxa))
+#			new_entry[tax_ind] <- taxa[tax_ind, i]
+#			taxa <- cbind(taxa, new_entry)
+#			names(taxa)[ncol(taxa)] <- paste(names(taxa)[i], taxon_cat[k], sep = '_')
+#			rm(new_entry)
+#			}
 		for(j in 1:length(taxon_groups)){	#Iterate through each taxon group
 			tax_ind <- which(taxa$TaxonType == taxon_groups[j])
 			new_entry <- rep(NA, nrow(taxa))
@@ -1534,9 +1568,9 @@ boot.susc <- function(turns_out){
 	types <- levels(turns_out$TaxonType)
 	sens <- susc <- matrix(NA, nrow = length(types), ncol = 3)
 	for(i in 1:length(types)){
-		rawvals <- turns_out$turn.point[turns_out$TaxonType == types[i]]
+		rawvals <- turnvals <- turns_out$turn.point[turns_out$TaxonType == types[i]]
 		binvals <- !is.na(rawvals)
-		turnvals <- rawvals[!is.na(rawvals)]
+		turnvals[is.na(turnvals)] <- 100
 		sums <- means <- NULL
 		for(k in 1:1000){
 			sums[k] <- sum(sample(binvals, size = length(binvals), replace = TRUE)) / length(binvals)
