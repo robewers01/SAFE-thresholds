@@ -276,6 +276,7 @@ glmer.extract <- function(glmer_output, comm = comm, taxon, coefs = NA){
 ###################################################################################
 ###################################################################################
 
+
 #Function to fit binomial GLM or GLMER as appropriate
 fit.models <- function(full_data, func_data = NA, lidar, predictor, min.observs = 5){
 	#full_data = raw data to be analysed
@@ -593,6 +594,9 @@ assign.taxon <- function(dataset, taxon_table = NA){
 	TaxonType[matched.taxa$class == 'Amphibia'] <- 'Amphibian'
 	TaxonType[matched.taxa$class == 'Actinopterygii'] <- 'Fish'
 	TaxonType[matched.taxa$phylum == 'Platyhelminthes' | matched.taxa$phylum == 'Nematoda' | matched.taxa$phylum == 'Annelida' | matched.taxa$phylum == 'Arthropoda' | matched.taxa$phylum == 'Mollusca' | matched.taxa$phylum == 'Nematomorpha'] <- 'Invertebrate'
+		TaxonType[matched.taxa$class == 'Arachnida'] <- 'Arachnid'
+		TaxonType[matched.taxa$class == 'Insecta'] <- 'Insect'
+		TaxonType[matched.taxa$family == 'Formicidae'] <- 'Ant'
 	TaxonType[matched.taxa$kingdom == 'Chromista'] <- 'microbe'
 	TaxonType[matched.taxa$kingdom == 'Fungi'] <- 'fungi'
 	matched.taxa$TaxonType <- TaxonType
@@ -726,13 +730,14 @@ taxaXfunc <- function(func_groups){
 	#Generate vector of functional groups
 	groups <- extract.func(func_groups)
 	groups.unique <- groups$group
+	func_groupsEXP <- expand.funcs(taxa = func_groups)
 	
 	#Extract taxon list
 	out.list <- list()
 	for(i in 1:length(groups.unique)){		#For each grouping factor
 		target.group <- groups.unique[i]
-		target.func <- as.data.frame(func_groups[ , match(target.group, names(func_groups))])
-		rownames(target.func) <- rownames(func_groups)
+		target.func <- as.data.frame(func_groupsEXP[ , match(target.group, names(func_groupsEXP))])
+		rownames(target.func) <- rownames(func_groupsEXP)
 	#		#Remove duplicates and rename rows by taxon_name
 	#		taxon.names <- unique(func_groups$taxon_name)
 	#		target.func <- as.data.frame(target.func[match(taxon.names, func_groups$taxon_name), ])
@@ -853,11 +858,11 @@ extract.func <- function(func_groups){
 	to.retain <- c(to.retain, plant[-grep('_Plant', groups[plant])])
 	func.categ <- c(func.categ, rep('Plant', length(plant[-grep('_Plant', groups[plant])])))
 	
+	#Create dataframe for output
 	out <- data.frame(group = groups[to.retain], category = func.categ)
-	#Remove generic vertebrate group (shouldn't be there, but good to check...)
-	out <- out[-grep('vertebrate', out$group), ]
+
 	#Add taxon column
-	out$taxon <- 'all taxa'
+	out$taxon <- rep('all taxa', nrow(out))
 	out$taxon[grep('Bird', out$group)] <- 'Bird'
 	out$taxon[grep('Invert', out$group)] <- 'Invertebrate'
 	out$taxon[grep('Amphibian', out$group)] <- 'Amphibian'
@@ -1040,7 +1045,7 @@ break.points <- function(x, y, ss = 10){
 
 
 #Function to calculate and add breakpoints to figure
-plot.breaks <- function(x, y, add_plot = TRUE, decel.col, ...){
+plot.breaks <- function(x, y, add_plot = TRUE, decel.col = 1, ...){
 	#x = x values
 	#y = y values
 	#add_plot = binary; add breakpoints to open plot or not?
@@ -1157,6 +1162,7 @@ firstup <- function(x) {
 
 
 ##Function to expand functional groups by taxonomic groups
+
 expand.funcs <- function(taxa){
 	#taxa = functional groups raw data
 	
@@ -1185,7 +1191,9 @@ expand.funcs <- function(taxa){
 		}
 	#Delete empty trait columns
 	emptycols <- sapply(taxa, function (k) all(is.na(k)))
-	taxa <- taxa[, !emptycols]
+	full_ind <- match(names(which(emptycols==FALSE)), names(taxa))
+	taxa <- taxa[, full_ind]
+	names(taxa) <- sub('.1', '', names(taxa))
 	
 	#Create categorical versions of numeric traits
 	taxa_cat <- func.cats(taxa = taxa)

@@ -4,7 +4,7 @@
 	setwd("C:/Users/rewers/OneDrive - Imperial College London/work/papers/in prep/ewers et al - SAFE meta-analysis/SAFE-thresholds/")
 	source("thresholds_functions.r")
 
-	require(ape)
+#	require(ape)
 	require(betareg)
 #	require(safedata)
 #	set_safe_dir("C:/Users/rewers/OneDrive - Imperial College London/work/SAFE project - private/safedata",update = FALSE)
@@ -13,23 +13,18 @@
 	thresh.data <- readRDS("data/threshold_taxa_data.rds")	#Site x species matrix for each dataset, containing only taxa that are duplicated across >1 dataset
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
 	func.groups <- readRDS('data/functional_groups.rds')	#Functional groups
-	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
-	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
-	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
+#	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
+#	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
+#	tr <- read.tree("data/species.nwk")						#Imported phylogeny from TimeTree (www.timetree.org)
 	bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
 	
-#Adjust data, fit models and calculate summaries
-#	func.groups <- expand.funcs(taxa = func.groups)		#Expand functions into taxonomic group-specific values
-#	func.groups <- func.cats(taxa = func.groups)		#Convert numeric traits into categorical
-
-
+#Fit models and calculate summaries
 #	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
-#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000').
-#		func_data = func.groups)
+#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
 #		saveRDS(fitted_thresh, 'results/fitted_thresh.rds')
-#	fitted_func <- fit.models(full_data = thresh.data, func_data = func.groups, lidar = lidar.data,
-#		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'), min.observs = 5)
-#	saveRDS(fitted_func, 'results/fitted_func.rds')
+	fitted_func <- fit.models(full_data = thresh.data, func_data = func.groups, lidar = lidar.data,
+		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'), min.observs = 5)
+	saveRDS(fitted_func, 'results/fitted_func.rds')
 #	turn_points <- turns(fitted_mod = fitted_thresh)
 #		saveRDS(turn_points, 'results/turn_points.rds')
 #	func_points <- turns(fitted_mod = fitted_func)
@@ -132,6 +127,30 @@
 	#Thresholds in functional group peak rate
 		func_rate <- func_points$maxrate[!is.na(func_points$maxrate)]
 		break.points(density(func_rate)$x, density(func_rate)$y)
+
+
+
+
+##proactive threshold
+	#for each of the four break.points, get first 'accelearate' value and take mean + error
+#reactive threshold
+	#for each of the four break.points, take last 'accelerate' value and take mean + error
+#Then apply rounding...
+#Use bootstrapping of input data to generate distribution of break.points estimates for getting 95% CI?
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
 
 
 #Taxonomic categories

@@ -28,9 +28,6 @@
 	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
 		bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
 
-#Summary calculations
-#	resil <- resil.dat(turns = turn_points$dataset, bayes = bayes_results)
-
 
 ##FIGURE 1: MAIN RESULTS
 png('figures/fig1.png', width = 800, height = 800)
@@ -112,16 +109,20 @@ png('figures/fig1.png', width = 800, height = 800)
 			border = pal[1], lwd = 5, density = 15)
 		plot.breaks(density(func_turn)$x, density(func_turn)$y, add_plot = TRUE,
 			pch = 21, cex = 4, col = pal[1], lwd = 2, decel.col = pal[1])
+			
+		#Add threshold locations
+		arrows(25, 0.02, 25, 0, lwd = 4, angle = 25, length = 0.1)
+		arrows(66, 0.02, 66, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
 	
-		legend('right', legend = c('accel.', 'decel.'), 
-			pch = c(21, 21), pt.bg = c('white', alpha(1, 0.5)),
-			cex = 2, pt.cex = 4, lty = 0, bty = 'n', lwd = 2,
+		legend('topright', legend = c('accel.', 'decel.', 'proactive', 'reactive'), 
+			pch = c(21, 21, NA, NA), pt.bg = c('white', alpha(1, 0.5), NA, NA),
+			cex = 1.8, pt.cex = 4, lty = c(0, 0, 1, 2), lwd = c(2,2,3,3), bty = 'n', 
 			x.intersp = 0.1)
 
 		text(x = 0, y = 0.029, labels = c('(C) Turning points'), cex = 2, pos = 4)
 		mtext('Density', side = 2, line = 4, cex = 2)
 	}
-	
+
 	#Panel D: rates of change density
 	{
 		#Taxa
@@ -140,6 +141,10 @@ png('figures/fig1.png', width = 800, height = 800)
 		plot.breaks(density(func_rate)$x, density(func_rate)$y, add_plot = TRUE,
 			pch = 21, cex = 4, lwd = 2, col = pal[1], decel.col = pal[1])
 	
+		#Add threshold locations
+		arrows(25, 0.02, 25, 0, lwd = 4, angle = 25, length = 0.1)
+		arrows(66, 0.02, 66, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
+	
 		text(x = 0, y = 0.029, labels = c('(D) Peak change points'), cex = 2, pos = 4)
 		mtext('Density', side = 2, line = 4, cex = 2)
 	}
@@ -152,7 +157,7 @@ png('figures/fig1.png', width = 800, height = 800)
 
 
 ##FIGURE 2 - TAXONOMIC SENSITIVITY
-png('figures/fig2.png', width = 800, height = 800)
+png('figures/fig2.png', width = 800, height = 400)
 {
 
 	par(mfrow = c(1,2))
@@ -162,21 +167,22 @@ png('figures/fig2.png', width = 800, height = 800)
 
 	#Panel A: Taxonomic resilience
 	{
-		turn_points$dataset$TaxonType <- factor(turn_points$dataset$TaxonType, levels = c('Plant', 'Invertebrate', 
-			'Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish'))
+		turn_points2 <- assign.taxon(turn_points, taxon_table = taxa)
+		turn_points$dataset$TaxonType <- factor(turn_points2$dataset$TaxonType, levels = c('Plant', 'Invertebrate', 
+			'Arachnid', 'Insect', 'Ant','Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish'))
 		func <- function(x) sum(!is.na(x))/length(x)
-		prop_imp <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
-		gen_turns <- turn_points$dataset$turn.point
+		prop_imp <- by(turn_points2$dataset$turn.point, factor(turn_points2$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
+		gen_turns <- turn_points2$dataset$turn.point
 		gen_turns[is.na(gen_turns)] <- 100
-		mean.turn <- 1 - by(gen_turns, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) / 100	#Mean turning point
+		mean.turn <- 1 - by(gen_turns, factor(turn_points2$dataset$TaxonType), FUN = mean, na.rm = TRUE) / 100	#Mean turning point
 		tax_res <- 1 - (prop_imp * mean.turn)
 		
 		#Plot figure
 		plot(mean.turn, prop_imp, cex = 5*tax_res, pch = 19, cex.axis = 2,
-			 xlim = c(0.2, 1), ylim = c(0.2, 1), xlab = '', ylab = '')
+			 xlim = c(0, 1), ylim = c(0, 1), xlab = '', ylab = '')
 		
 		#Add error estimates
-		susc_boot <- boot.susc(turns_out = turn_points$dataset)
+		susc_boot <- boot.susc(turns_out = turn_points2$dataset)
 		for(i in 1:nrow(susc_boot$sens)){
 			arrows(mean.turn[i], susc_boot$sens[i,1], mean.turn[i], susc_boot$sens[i,3], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
 			arrows(susc_boot$susc[i,1], prop_imp[i], susc_boot$susc[i,3], prop_imp[i], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
@@ -204,18 +210,18 @@ png('figures/fig2.png', width = 800, height = 800)
 			cex = 2, lty = 0, bty = 'n', x.intersp = 0.8)
 
 		mtext('Susceptibility', 2, line = 3, cex = 2)
-		text(x = 0.18, y = 0.98, labels = c('(A) Taxonomic resilience'), cex = 2, pos = 4)
+		text(x = 0, y = 0.98, labels = c('(A) Taxonomic resilience'), cex = 2, pos = 4)
 	}
 	
 	#Panel B: Functional resilience
 	{
-	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points$dataset)
+	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points2$dataset)
 	
-	plot(0,0, xlim = c(0.2, 1), ylim = c(0.2, 1), col = 'white', 
+	plot(0,0, xlim = c(0, 1), ylim = c(0, 1), col = 'white', 
 		xlab = '', ylab = '', yaxt = 'n', cex.lab = 2.5, cex.axis = 2)
 	axis(side = 2, labels = FALSE)
 
-	for(i in 1:length(sens)){
+	for(i in 1:length(resil_func$sens)){
 		xvals <- resil_func$sens[i][[1]]
 		yvals <- resil_func$susc[i][[1]]
 		arrows(xvals[1], yvals[2], xvals[3], yvals[2], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
@@ -229,7 +235,7 @@ png('figures/fig2.png', width = 800, height = 800)
 		text(x = xvals[2]+0.03, y = yvals[2]+0.03, adj = 0, labels = names(resil_func$sens)[i], cex = 1.2)
 		}
 
-	text(x = 0.18, y = 0.98, labels = c('(B) Functional resilience'), cex = 2, pos = 4)
+	text(x = 0, y = 0.98, labels = c('(B) Functional resilience'), cex = 2, pos = 4)
 	}
 	
 	#Axis label
