@@ -307,7 +307,7 @@ fit.models <- function(full_data, func_data = NA, lidar, predictor, min.observs 
 			}else{
 				print(paste('fitting models to taxon', i, 'of', length(to.iterate), ':', to.iterate[i]))
 				longlist <- match(taxa.lists[[i]], rownames(taxa_survey))
-				if(length(longlist) == 1 & is.na(longlist[1])){
+				if((length(longlist) == 1 & is.na(longlist[1])) | sum(is.na(longlist)) == length(longlist)){
 					comm_data <- NULL
 					}else{
 						shortlist <- longlist[!is.na(longlist)]
@@ -1045,7 +1045,7 @@ break.points <- function(x, y, ss = 10){
 
 
 #Function to calculate and add breakpoints to figure
-plot.breaks <- function(x, y, add_plot = TRUE, decel.col, ...){
+plot.breaks <- function(x, y, add_plot = TRUE, decel.col = 1, ...){
 	#x = x values
 	#y = y values
 	#add_plot = binary; add breakpoints to open plot or not?
@@ -1505,6 +1505,7 @@ resil.calc <- function(turns){
 
 
 #Function to extract resilience per functional group
+##NOT USED
 resil.func <- function(func_groups, func_points, turns){
 	#func_groups = functional traits data
 	#func_points = output from turns called on functional group data
@@ -1586,6 +1587,8 @@ boot.susc <- function(turns_out){
 			}
 		sens[i, ] <- quantile(sums, probs = c(0.025, 0.5, 0.975))
 		susc[i, ] <- quantile(means, probs = c(0.025, 0.5, 0.975))
+	#	sens[i,2] <- mean(binvals)
+	#	susc[i,2] <- 1 - mean(turnvals)/100
 		}
 	sens <- data.frame(sens)
 	susc <- data.frame(susc)
@@ -1594,6 +1597,67 @@ boot.susc <- function(turns_out){
 	
 	return(list(sens = sens, susc = susc))
 	}
+
+###################################################################################
+###################################################################################
+
+
+
+#Generic bootstrapping function that returns 2.5 and 97.5 % quantiles
+bootstrap <- function(x){
+	#x = vector of data to bootstrap
+	
+	means <- numeric()
+	for(i in 1:1000){
+		means[i] <- mean(sample(x, length(x), replace = TRUE))
+		}
+	out <- quantile(means, probs = c(0.027, 0.975))
+	return (out)
+	}
+
+###################################################################################
+###################################################################################
+
+
+#Function to estimate location of ecological thresholds
+estimate.thresholds <- function(turn_points, func_points){
+	#turn_points = output from call to 'fitted_mod' applied to taxa
+	#func_points = output from call to 'fitted_mod' applied to functional groups
+	
+	#Thresholds in taxa turning points
+		taxa_turn <- turn_points$dataset$turn.point[!is.na(turn_points$dataset$turn.point)]
+		tt_bp <- break.points(density(taxa_turn)$x, density(taxa_turn)$y)
+	#Thresholds in functional group turning points
+		func_turn <- func_points$turn.point[!is.na(func_points$turn.point)]
+		ft_bp <- break.points(density(func_turn)$x, density(func_turn)$y)
+	#Thresholds in taxa peak rate
+		taxa_rate <- turn_points$dataset$maxrate[!is.na(turn_points$dataset$maxrate)]
+		tr_bp <- break.points(density(taxa_rate)$x, density(taxa_rate)$y)
+	#Thresholds in functional group peak rate
+		func_rate <- func_points$maxrate[!is.na(func_points$maxrate)]
+		fr_bp <- break.points(density(func_rate)$x, density(func_rate)$y)
+
+	combined <- list(tt = tt_bp, ft = ft_bp, tr = tr_bp, fr = fr_bp)
+	#Extract acceleration points
+	ttA <- which(combined$tt$type == 'accelerate')
+	ftA <- which(combined$ft$type == 'accelerate')
+	trA <- which(combined$tr$type == 'accelerate')
+	frA <- which(combined$fr$type == 'accelerate')
+
+	#Proactive threshold
+	pros <- c(combined$tt$bps[ttA[1]], combined$ft$bps[ttA[1]], combined$tr$bps[ttA[1]], combined$fr$bps[ttA[1]])
+	mean_pro <- mean(pros)
+	boot_pro <- bootstrap(pros)
+	
+	#Reactive threshold
+	react <- c(combined$tt$bps[ttA[length(ttA)]], combined$ft$bps[ttA[length(ttA)]], combined$tr$bps[ttA[length(ttA)]], combined$fr$bps[ttA[length(ttA)]])
+	mean_react <- mean(react)
+	boot_react <- bootstrap(react)
+	
+	out<- list(proactive = c(mean_pro, boot_pro), reactive = c(mean_react, boot_react))
+	return(out)
+	}
+
 
 ###################################################################################
 ###################################################################################

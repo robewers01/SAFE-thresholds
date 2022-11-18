@@ -10,6 +10,7 @@
 	require(jpeg)
 	require(lme4)
 	require(paletteer)
+	require(plyr)
 	require(png)
 	require(scales)
 
@@ -22,7 +23,7 @@
 		fitted_func <- fitted_func[!is.na(fitted_func$num.occs), ]	#Remove taxa that weren't found for analyses
 	turn_points <- readRDS('results/turn_points.rds')
 	func_points <- readRDS('results/func_points.rds')
-	break_points <- readRDS('results/break_points.rds')
+#	break_points <- readRDS('results/break_points.rds')
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
 	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
 	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
@@ -37,6 +38,10 @@ png('figures/fig1.png', width = 800, height = 800)
 	par(oma = c(3, 0, 0, 0))
 	xvals <- 0:100
 	pal <- paletteer_d("ggthemes::excel_Aspect")
+	
+	proThresh <- round_any(thresholds$proactive[1], 5, f = round)
+	reThresh <- round_any(thresholds$reactive[1], 5, f = round)
+
 
 	#Panel A: Cumulative distribution function
 	{
@@ -92,10 +97,11 @@ png('figures/fig1.png', width = 800, height = 800)
 
 	#Panel C: turning points density
 	{
-		turn_points <- assign.taxon(dataset = turn_points, taxon_table = taxa)
+		turn_pointsC <- assign.taxon(dataset = turn_points, taxon_table = taxa)
+		thresholds <- estimate.thresholds(turn_points, func_points)
 		
 		#Taxa
-		taxa_turn <- turn_points$dataset$turn.point[!is.na(turn_points$dataset$turn.point)]
+		taxa_turn <- turn_pointsC$dataset$turn.point[!is.na(turn_pointsC$dataset$turn.point)]
 		plot(density(taxa_turn), xlim = c(0,100), main = "", xlab = '', ylab = '',
 			ylim = c(0, 0.03), 
 			lwd = 5, col = alpha(pal[4], 1), cex.lab = 2.5, cex.axis = 2)
@@ -111,8 +117,8 @@ png('figures/fig1.png', width = 800, height = 800)
 			pch = 21, cex = 4, col = pal[1], lwd = 2, decel.col = pal[1])
 			
 		#Add threshold locations
-		arrows(25, 0.02, 25, 0, lwd = 4, angle = 25, length = 0.1)
-		arrows(66, 0.02, 66, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
+		arrows(proThresh, 0.02, proThresh, 0, lwd = 4, angle = 25, length = 0.1)
+		arrows(reThresh, 0.02, reThresh, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
 	
 		legend('topright', legend = c('accel.', 'decel.', 'proactive', 'reactive'), 
 			pch = c(21, 21, NA, NA), pt.bg = c('white', alpha(1, 0.5), NA, NA),
@@ -126,7 +132,7 @@ png('figures/fig1.png', width = 800, height = 800)
 	#Panel D: rates of change density
 	{
 		#Taxa
-		taxa_rate <- turn_points$dataset$maxrate[!is.na(turn_points$dataset$maxrate)]
+		taxa_rate <- turn_pointsC$dataset$maxrate[!is.na(turn_pointsC$dataset$maxrate)]
 		plot(density(taxa_rate), xlim = c(0,100), main = "", xlab = '', ylab = '',
 			ylim = c(0, 0.03),
 			lwd = 5, col = alpha(pal[4], 1), cex.lab = 2.5, cex.axis = 2)
@@ -142,8 +148,8 @@ png('figures/fig1.png', width = 800, height = 800)
 			pch = 21, cex = 4, lwd = 2, col = pal[1], decel.col = pal[1])
 	
 		#Add threshold locations
-		arrows(25, 0.02, 25, 0, lwd = 4, angle = 25, length = 0.1)
-		arrows(66, 0.02, 66, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
+		arrows(proThresh, 0.02, proThresh, 0, lwd = 4, angle = 25, length = 0.1)
+		arrows(reThresh, 0.02, reThresh, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
 	
 		text(x = 0, y = 0.029, labels = c('(D) Peak change points'), cex = 2, pos = 4)
 		mtext('Density', side = 2, line = 4, cex = 2)
@@ -168,21 +174,23 @@ png('figures/fig2.png', width = 800, height = 400)
 	#Panel A: Taxonomic resilience
 	{
 		turn_points2 <- assign.taxon(turn_points, taxon_table = taxa)
-		turn_points$dataset$TaxonType <- factor(turn_points2$dataset$TaxonType, levels = c('Plant', 'Invertebrate', 
+		turn_points2$dataset$TaxonType <- factor(turn_points2$dataset$TaxonType, levels = c('Plant', 'Invertebrate', 
 			'Arachnid', 'Insect', 'Ant','Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish'))
 		func <- function(x) sum(!is.na(x))/length(x)
 		prop_imp <- by(turn_points2$dataset$turn.point, factor(turn_points2$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
 		gen_turns <- turn_points2$dataset$turn.point
 		gen_turns[is.na(gen_turns)] <- 100
-		mean.turn <- 1 - by(gen_turns, factor(turn_points2$dataset$TaxonType), FUN = mean, na.rm = TRUE) / 100	#Mean turning point
+		mean.turn <- 1 - by(gen_turns, turn_points2$dataset$TaxonType, FUN = mean, na.rm = TRUE) / 100	#Mean turning point
 		tax_res <- 1 - (prop_imp * mean.turn)
+		susc_boot <- boot.susc(turns_out = turn_points2$dataset)
 		
 		#Plot figure
 		plot(mean.turn, prop_imp, cex = 5*tax_res, pch = 19, cex.axis = 2,
 			 xlim = c(0, 1), ylim = c(0, 1), xlab = '', ylab = '')
+	#	plot(susc_boot$susc[,2], susc_boot$sens[,2], cex = 5*tax_res, pch = 19, cex.axis = 2,
+	#		 xlim = c(0, 1), ylim = c(0, 1), xlab = '', ylab = '')
 		
 		#Add error estimates
-		susc_boot <- boot.susc(turns_out = turn_points2$dataset)
 		for(i in 1:nrow(susc_boot$sens)){
 			arrows(mean.turn[i], susc_boot$sens[i,1], mean.turn[i], susc_boot$sens[i,3], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
 			arrows(susc_boot$susc[i,1], prop_imp[i], susc_boot$susc[i,3], prop_imp[i], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
