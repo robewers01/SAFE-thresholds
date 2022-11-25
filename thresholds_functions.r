@@ -362,6 +362,9 @@ fit.models <- function(full_data, func_data = NA, lidar, predictor, min.observs 
 			
 		}
 	
+	#Remove any taxa with no taxonomic information
+	coefs <- coefs[-grep('Unknown', coefs$taxon), ]
+	
 #	return(list(coefs = coefs, models = models))
 	return(coefs)
 	}
@@ -1118,23 +1121,23 @@ func.summary <- function(func_groups){
 	#func_groups = functional traits data
 	
 	diets <- names(func.groups[grep('Diet', names(func.groups))])
-	numdiets <- length(diets[-c(grep('_', diets), grep('Gener', diets))])		#Number of diets
+	numdiets <- length(diets[-c(grep('Gener', diets))])		#Number of diets
 	trophic <- names(func.groups[grep('Troph', names(func.groups))])
-	numtroph <- length(trophic[-c(grep('_', trophic), grep('Gener', trophic))])		#Number of trophic levels
+	numtroph <- length(trophic[-c(grep('Gener', trophic))])		#Number of trophic levels
 	move <- names(func.groups)[grep('Movem', names(func.groups))]
-	movetypes <- unique(func.groups[, move[-c(grep('_', move))]])
+	movetypes <- unique(func.groups[, move])
 	movetypes <- movetypes[-is.na(movetypes)]
 	physiol <- names(func.groups)[grep('Phys', names(func.groups))]
-	physioltypes <- unique(func.groups[, physiol[-c(grep('_', physiol))]])
+	physioltypes <- unique(func.groups[, physiol])
 	physioltypes <- physioltypes[-is.na(physioltypes)]
 	strata <- names(func.groups)[grep('Stra', names(func.groups))]
-	stratatypes <- strata[-c(grep('_', strata))]
+	stratatypes <- strata
 	stratatypes <- stratatypes[-c(is.na(stratatypes), grep('Gener', stratatypes))]
 	social <- names(func.groups)[grep('Soci', names(func.groups))]
-	socialtypes <- unique(func.groups[, social[-c(grep('_', social))]])
+	socialtypes <- unique(func.groups[, social])
 	socialtypes <- socialtypes[-is.na(socialtypes)]
 	cons <- names(func.groups)[grep('IUCN', names(func.groups))]
-	constypes <- unique(func.groups[, cons[-c(grep('_', cons))]])
+	constypes <- unique(func.groups[, cons])
 	constypes <- constypes[-is.na(constypes)]
 	
 	print(paste('Number of diets:', numdiets))
@@ -1504,8 +1507,7 @@ resil.calc <- function(turns){
 ###################################################################################
 
 
-#Function to extract resilience per functional group
-##NOT USED
+#Function to extract susceptibility, sensitivity and resilience per functional group
 resil.func <- function(func_groups, func_points, turns){
 	#func_groups = functional traits data
 	#func_points = output from turns called on functional group data
@@ -1515,55 +1517,60 @@ resil.func <- function(func_groups, func_points, turns){
 	funcs <- arrange.funcplot(func_groups = func_groups, func_points = func_points)$summary
 	func_groups <- expand.funcs(taxa = func_groups)
 	
-	subdat <- func_groups[ , unique(match(funcs$shortname, names(func_groups)))]
+	func_set <- unique(funcs$shortname)		#Set of functions to iterate through
 	
 	#Output matrix
-	out <- data.frame(susceptibility = NULL, sensitivity = NULL, 
-		resilience = NULL, num.taxa = NULL)
-	
-	for(i in 1:ncol(subdat)){		#For each function type
-		if(length(unique(subdat[ , i])) == 1){		#If there's only one category of function
-			targs <- rownames(subdat)[!is.na(subdat[ , i])]
-			taxa.match <- match(targs, turns$taxon)
-			taxa.match <- taxa.match[!is.na(taxa.match)]
-			targs.turns <- turns[taxa.match, ]
-			outNew <- resil.calc(targs.turns)
-			rownames(outNew) <- names(subdat)[i]
-			out <- rbind(out, outNew)
-			}else{
-				cats <- unique(subdat[ , i])
-				cats<- cats[!is.na(cats)]
-				###For each value of the trait.... generate resilience separately
-				for(k in 1:length(cats)){
-					targs <- rownames(subdat)[subdat[,i] == cats[k]]
-					targs <- targs[!is.na(targs)]
-					taxa.match <- match(targs, turns$taxon)
-					taxa.match <- taxa.match[!is.na(taxa.match)]
-					targs.turns <- turns[taxa.match, ]
-					outNew <- resil.calc(targs.turns)
-					rownames(outNew) <- paste(names(subdat)[i], '_', cats[k], sep = "")
-					out <- rbind(out, outNew)
-					}
-				}
+	sens <- susc <- data.frame()
+	num_taxa <- NULL
+	for(i in 1:length(func_set)){		#For each function type
+		#Extract target functional category
+		func_targ <- func_set[i]
+		targ_ind <- match(func_targ, names(func_groups))
+		targ_col <- func_groups[ , targ_ind]
+		func_type <- unique(targ_col)
+		func_type <- func_type[!is.na(func_type)]
+		for(j in 1:length(func_type)){		#For each functional type
+			targ_taxa <- rownames(func_groups)[which(targ_col == func_type[j])]		#List of taxa belonging to that functional type
+			indices <- match(targ_taxa, turns$taxon)
+			indices <- indices[!is.na(indices)]			#Row numbers for taxa that were modelled
+			sub_turns <- turns[indices, ]
+			sub_turns$TaxonType <- factor(paste(func_targ, func_type[j], sep = '_'))
+			#Bootstrap sensitivity and susceptibility values
+			susc_boot <- boot.susc(turns_out = sub_turns)	
+			#Calculate susceptibility
+			func <- function(x) sum(!is.na(x))/length(x)
+			prop_imp <- by(sub_turns$turn.point, factor(sub_turns$TaxonType), FUN = func)	#Proportion taxa with turning points
+			susc_boot$susc$prop_imp <- prop_imp
+			#Calculate sensitivity
+			gen_turns <- sub_turns$turn.point
+			gen_turns[is.na(gen_turns)] <- 100
+			mean.turn <- 1 - by(gen_turns, sub_turns$TaxonType, FUN = mean, na.rm = TRUE) / 100	#Mean turning point
+			susc_boot$sens$mean.turn <- mean.turn
+
+			sens <- rbind(sens, susc_boot$sens)
+			susc <- rbind(susc, susc_boot$susc)
+			num_taxa <- c(num_taxa, nrow(sub_turns))
+			
+			rm(susc_boot)
+			}
 		}
+	#Only retain functional types with >= 5 taxa
+	keeps <- which(num_taxa >= 5)
+	sens <- sens[keeps, ]
+	susc <- susc[keeps, ]
 	
-	out$taxon <- rownames(out)
+	#Obtain display names and key info
+	align <- match(rownames(sens), funcs$taxon)
+	keeps2 <- which(!is.na(align))
+	sens <- sens[keeps2, ]
+	susc <- susc[keeps2, ]
+	align <- align[!is.na(align)]
+	
+	funcs_keep <- funcs[align, ]
+	funcs_keep$resilience <- 1 - (susc$prop_imp * sens$mean.turn)
 
-
-	resil_func <- merge(out, funcs)
-	resil_func$category <- factor(resil_func$category, levels = c('Red List status', 
-		'Body mass', 'Physiology', 'Development', 'Movement', 'Sociality', 
-		'Trophic', 'Diet', 'Habitat strata', 'Plant'))
-	cats <- summary(resil_func$category)
-	keeps <- names(cats)[cats >= 5]			#Only retain categories with >=5 estimates
-	resil_dat <- resil_func[which(!is.na(match(resil_func$category, keeps))), ]
-	resil_dat$category <- factor(resil_dat$category, levels = keeps)	
-
-	res <- by(resil_dat$resilience, resil_dat$category, mean)
-	sens <- by(resil_dat$sensitivity, resil_dat$category, quantile, probs = c(0.025, 0.5, 0.975))
-	susc <- by(resil_dat$susceptibility, resil_dat$category, quantile, probs = c(0.025, 0.5, 0.975))
-
-	return(list(summary = out, res = res, sens = sens, susc = susc))
+	out <- list(sens = sens, susc = susc, funcs = funcs_keep)
+	return(out)
 	}
 
 ###################################################################################
@@ -1585,7 +1592,7 @@ boot.susc <- function(turns_out){
 			sums[k] <- sum(sample(binvals, size = length(binvals), replace = TRUE)) / length(binvals)
 			means[k] <- 1 - mean(sample(turnvals, size = length(binvals), replace = TRUE)) / 100
 			}
-		sens[i, ] <- quantile(sums, probs = c(0.025, 0.5, 0.975))
+		sens[i, ] <- 1-quantile(sums, probs = c(0.025, 0.5, 0.975))
 		susc[i, ] <- quantile(means, probs = c(0.025, 0.5, 0.975))
 	#	sens[i,2] <- 1-mean(binvals)
 	#	susc[i,2] <- 1 - mean(turnvals)/100
@@ -1659,5 +1666,76 @@ estimate.thresholds <- function(turn_points, func_points){
 	}
 
 
+##########################################################################################################
+##########################################################################################################
+
+#Function to work out how many datasets had repeat site visits within a survey
+repeat.visits <- function(full.data){
+	visits <- numeric()
+	for(i in 1:length(full.data)){
+		comm <- full.data[[i]]$comm.out
+		reps <- summary(factor(comm$site), maxsum = nrow(comm))
+		visits[i] <- mean(reps)
+		}
+	
+	out <- data.frame(survey = names(full.data), mean.visits = visits)
+	
+	return(out)
+	}
+
+
 ###################################################################################
 ###################################################################################
+
+
+#Function to create taxon x dataset list
+taxon.dataset <- function(full_data){
+	#full_data = output from taxa.clean
+
+	taxa.dataset <- NA
+	for(i in 1:length(full_data)){
+		comm.out <- full_data[[i]]$comm.out
+		if(!is.data.frame(taxa.dataset)){	
+			if(ncol(comm.out) > 4){
+				taxa.dataset <- as.data.frame(matrix(colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE),
+						nrow = length(4:ncol(comm.out)), ncol = 1))
+				}else{
+					taxa.dataset <- as.data.frame(matrix(sum(comm.out[, 4], na.rm = TRUE),
+						nrow = length(4:ncol(comm.out)), ncol = 1))
+					}
+			rownames(taxa.dataset) <- names(comm.out)[4:ncol(comm.out)]
+			colnames(taxa.dataset) <- full_data[[i]]$data.name
+			}else{
+				taxa.dataset <- cbind(taxa.dataset, matrix(NA, nrow(taxa.dataset), ncol = 1))
+					names(taxa.dataset)[ncol(taxa.dataset)] <- full_data[[i]]$data.name
+				matched.taxa <- match(names(comm.out)[4:ncol(comm.out)], rownames(taxa.dataset))
+					matched.taxa2 <- matched.taxa[!is.na(matched.taxa)]
+				if(length(matched.taxa2) > 0){	
+					if(ncol(comm.out) > 4){
+						taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- 
+							colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[which(!is.na(matched.taxa))]
+						}else{
+							taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)
+							}
+					}
+				new.taxa <- names(comm.out)[4:ncol(comm.out)][is.na(matched.taxa)]
+					new.taxa <- new.taxa[!is.na(new.taxa)]
+				if(length(new.taxa) > 0){	
+					new.dataset <- as.data.frame(matrix(NA, nrow = length(new.taxa), ncol = ncol(taxa.dataset)))
+						names(new.dataset) <- names(taxa.dataset)
+						rownames(new.dataset) <- new.taxa
+				if(ncol(comm.out) > 4){	
+					new.dataset[ , ncol(new.dataset)] <- colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
+					}else{
+						new.dataset[ , ncol(new.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
+						}
+					taxa.dataset <- rbind(taxa.dataset, new.dataset)
+					}
+				}
+		}
+	return(taxa.dataset)
+	}
+
+###################################################################################
+###################################################################################
+

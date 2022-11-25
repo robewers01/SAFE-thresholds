@@ -39,8 +39,6 @@ png('figures/fig1.png', width = 800, height = 800)
 	xvals <- 0:100
 	pal <- paletteer_d("ggthemes::excel_Aspect")
 	
-	proThresh <- round_any(thresholds$proactive[1], 5, f = round)
-	reThresh <- round_any(thresholds$reactive[1], 5, f = round)
 
 
 	#Panel A: Cumulative distribution function
@@ -98,7 +96,9 @@ png('figures/fig1.png', width = 800, height = 800)
 	#Panel C: turning points density
 	{
 		turn_pointsC <- assign.taxon(dataset = turn_points, taxon_table = taxa)
-		thresholds <- estimate.thresholds(turn_points, func_points)
+		thresholds <- estimate.thresholds(turn_pointsC, func_points)
+		proThresh <- round_any(thresholds$proactive[1], 5, f = round)
+		reThresh <- round_any(thresholds$reactive[1], 5, f = round)
 		
 		#Taxa
 		taxa_turn <- turn_pointsC$dataset$turn.point[!is.na(turn_pointsC$dataset$turn.point)]
@@ -162,7 +162,7 @@ png('figures/fig1.png', width = 800, height = 800)
 		
 
 
-##FIGURE 2 - TAXONOMIC SENSITIVITY
+##FIGURE 2 - SENSITIVITY, SUSCEPTIBILITY AND RESILIENCE
 png('figures/fig2.png', width = 800, height = 400)
 {
 
@@ -185,9 +185,7 @@ png('figures/fig2.png', width = 800, height = 400)
 		susc_boot <- boot.susc(turns_out = turn_points2$dataset)
 		
 		#Plot figure
-		plot(mean.turn, prop_imp, cex = 5*tax_res, pch = 19, cex.axis = 2,
-			 xlim = c(0, 1), ylim = c(0, 1), xlab = '', ylab = '')
-		plot(susc_boot$susc[,2], susc_boot$sens[,2], cex = 5*tax_res, pch = 19, cex.axis = 2,
+		plot(mean.turn, prop_imp, cex = tax_res^2 * 5, pch = 19, cex.axis = 2, col = 'white',
 			 xlim = c(0, 1), ylim = c(0, 1), xlab = '', ylab = '')
 		
 		#Add error estimates
@@ -196,26 +194,19 @@ png('figures/fig2.png', width = 800, height = 400)
 			arrows(susc_boot$susc[i,1], prop_imp[i], susc_boot$susc[i,3], prop_imp[i], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
 			}
 		#Re-plot points to put them on top
-		points(mean.turn, prop_imp, cex = 5*tax_res, pch = 19)	
+		points(mean.turn, prop_imp, cex = 5*tax_res^2, pch = 19, , col = alpha(1, 0.6))	
 		
 		#Add names
+		xadj = c(-0.03, 0.03, 0.03, 0.03, -0.03, 0.03, 0.02, -0.02, -0.03, 0.03)
+		yadj = c(0.03, 0.03, -0.03, 0.03, -0.03, 0.03, -0.02, -0.02, 0.03, 0.03)
+		tadj = c(1, 0, 0, 0, 1, 0, 0, 1, 1, 0)
+		
 		for(i in 1:length(prop_imp)){
-			if(names(prop_imp)[i] == 'Invertebrate'){
-				text(x = mean.turn[i] + 0.03, y = prop_imp[i] - 0.03, adj = 0, labels = names(mean.turn)[i], cex = 1.2)
+				text(x = mean.turn[i] + xadj[i], y = prop_imp[i] + yadj[i], adj = tadj[i], labels = names(mean.turn[i]), cex = 1.2)
 				}
-			if(names(prop_imp)[i] == 'Bird'){
-				text(x = mean.turn[i] - 0.03, y = prop_imp[i] - 0.03, adj = 0.5, labels = names(mean.turn)[i], cex = 1.2)
-				}
-			if(names(prop_imp)[i] == 'Reptile'){
-				text(x = mean.turn[i] - 0.03, y = prop_imp[i] + 0.03, adj = 1, labels = names(mean.turn)[i], cex = 1.2)
-				}
-			if(names(prop_imp)[i] != 'Reptile' & names(prop_imp)[i] != 'Bird' & names(prop_imp)[i] != 'Invertebrate'){
-				text(x = mean.turn[i] + 0.03, y = prop_imp[i] + 0.03, adj = 0, labels = names(mean.turn)[i], cex = 1.2)
-				}
-			}
 				
-		legend('bottomright', pch = 19, pt.cex = c(0.4, 0.6, 0.8)*5, legend = c(0.4, 0.6, 0.8),
-			cex = 2, lty = 0, bty = 'n', x.intersp = 0.8)
+		legend('bottomright', pch = 19, pt.cex = 5*c(0.45, 0.6, 0.75, 0.9)^2, legend = c('0.45', '0.60', '0.75', '0.90'),
+			cex = 2, lty = 0, bty = 'n', x.intersp = 0.8, col = alpha(1, 0.6))
 
 		mtext('Susceptibility', 2, line = 3, cex = 2)
 		text(x = 0, y = 0.98, labels = c('(A) Taxonomic resilience'), cex = 2, pos = 4)
@@ -225,23 +216,21 @@ png('figures/fig2.png', width = 800, height = 400)
 	{
 	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points2$dataset)
 	
-	plot(0,0, xlim = c(0, 1), ylim = c(0, 1), col = 'white', 
+	
+	plot(resil_func$sens$mean.turn, resil_func$susc$prop_imp, 
+		cex = resil_func$funcs$resilience^2 * 5, pch = 19, col = 'white',
+		xlim = c(0, 1), ylim = c(0, 1), 
 		xlab = '', ylab = '', yaxt = 'n', cex.lab = 2.5, cex.axis = 2)
 	axis(side = 2, labels = FALSE)
 
-	for(i in 1:length(resil_func$sens)){
-		xvals <- resil_func$sens[i][[1]]
-		yvals <- resil_func$susc[i][[1]]
-		arrows(xvals[1], yvals[2], xvals[3], yvals[2], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
-		arrows(xvals[2], yvals[1], xvals[2], yvals[3], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
-		points(xvals[2], yvals[2], pch = 19, cex = 5*resil_func$res[i])
+	for(i in 1:nrow(resil_func$sens)){
+		xvals <- resil_func$sens$mean.turn[i]
+		yvals <- resil_func$susc$prop_imp[i]
+		arrows(resil_func$susc$z025[i], yvals, resil_func$susc$z975[i], yvals, length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
+		arrows(xvals, resil_func$sens$z025[i], xvals, resil_func$sens$z975[i], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
 		}
-	#Plot text on top
-	for(i in 1:length(resil_func$sens)){
-		xvals <- resil_func$sens[i][[1]]
-		yvals <- resil_func$susc[i][[1]]
-		text(x = xvals[2]+0.03, y = yvals[2]+0.03, adj = 0, labels = names(resil_func$sens)[i], cex = 1.2)
-		}
+	points(resil_func$sens$mean.turn, resil_func$susc$prop_imp, 
+		cex = resil_func$funcs$resilience^2 * 5, pch = 19, col = alpha(1, 0.6)) 
 
 	text(x = 0, y = 0.98, labels = c('(B) Functional resilience'), cex = 2, pos = 4)
 	}
