@@ -35,13 +35,13 @@
 	fitted_func <- readRDS('results/fitted_func.rds')
 	turn_points <- readRDS('results/turn_points.rds')
 	func_points <- readRDS('results/func_points.rds')
-	func_points <- readRDS('results/func_points.rds')
 
+#Calculate summaries and derived data
 	taxa_cats <- assign.taxon(dataset = fitted_thresh[!is.na(fitted_thresh$modtype), ], taxon_table = taxa)
 	turn_points <- assign.taxon(dataset = turn_points, taxon_table = taxa)
 	phylo <- arrange.phylo(timetree = tr, raw_data = thresh.data, taxa_safe = taxa,
 		tt_map = map, coefs = fitted_thresh, palette_col = NA)
-	taxaXdata <- taxon.dataset(thresh.data)	#Create taxon x survey matrix
+	taxaXdata <- taxon.dataset(thresh.data)
 
 
 #Abstract
@@ -73,16 +73,16 @@
 		length(which(taxa_cats$matched.taxa$family == 'Formicidae'))	#Number of ants
 		length(which(taxa_cats$dataset$TaxonType == 'Arachnid'))		#Number of spiders
 	#Survey information
+		sum(rowSums(!is.na(taxaXdata)) > 1)				#Number of taxa in >1 survey
+		sum(rowSums(!is.na(taxaXdata)) > 1) / nrow(taxaXdata)	#As a proportion
 		visits <- repeat.visits(thresh.data)
 		sum(visits$mean.visits > 1)					#Number surveys with >1 visit
 		sum(visits$mean.visits > 1)/nrow(visits)	#as proportion
-
-
 	#Functional groups
-	minsize <- print(func.groups[which(func.groups$BodyMass == min(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
-	maxsize <- print(func.groups[which(func.groups$BodyMass == max(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
-	log10(maxsize$BodyMass[1]) - log10(minsize$BodyMass[1])		#Orders of magnitude in body size
-	func.summary(func_groups = func.groups)
+		minsize <- print(func.groups[which(func.groups$BodyMass == min(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
+		maxsize <- print(func.groups[which(func.groups$BodyMass == max(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
+		log10(maxsize$BodyMass[1]) - log10(minsize$BodyMass[1])		#Orders of magnitude in body size
+		func.summary(func_groups = func.groups)
 
 
 
@@ -143,12 +143,21 @@
 	anova(lm(resilience ~ category, data = resil_func$funcs))
 
 #Functional composition - example taxa
+	#Body size
+	find.egs(Function = 'BodyMass_Fish_Categorised', function_qual = 'low', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
 	#Habitat strata generalists
 	find.egs(Function = 'StrataGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
 		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
 	#Trophic
-	find.egs(Function = 'TrophicGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+#	find.egs(Function = 'TrophicGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
+#		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Diet
+#	find.egs(Function = 'DietGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
+#		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Parasites
+#	find.egs(Function = 'TrophPara', function_qual = 'parasite', taxtype = NA, 
+#		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
 	#Endangered
 	find.egs(Function = 'IUCNthreat', function_qual = 'Threatened', taxtype = NA, 
 		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
@@ -165,6 +174,9 @@
 		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
 	#Subterranean mammals
 	find.egs(Function = 'StraSub', function_qual = 'subterranean', taxtype = 'mammal', 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Subterranean mammals
+	find.egs(Function = 'Movement_Invertebrate', function_qual = 'legless', taxtype = 'mammal', 
 		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
 	
 
@@ -209,4 +221,21 @@
 
 #Table S1
 	summarise.data(thresh.data)
+	
+#Table S2
+
+	funcs <- rename.funcs(func_groups = func.groups, func_points = func_points)
+	funcs_sub <- funcs[ , c('category', 'qualifier', 'TaxType')]
+	funcs_sub$quantity <- NA
+		funcs_sub$quantity[grep('high', funcs_sub$qualifier)] <- 'high'
+		funcs_sub$quantity[grep('medium', funcs_sub$qualifier)] <- 'medium'
+		funcs_sub$quantity[grep('low', funcs_sub$qualifier)] <- 'low'
+		levels(funcs_sub$quantity) <- c('low', 'medium', 'high')
+	funcs_sub$qualifier <- gsub('-', '', funcs_sub$qualifier)
+	funcs_sub$qualifier <- gsub('high', '', funcs_sub$qualifier)
+	funcs_sub$qualifier <- gsub('medium', '', funcs_sub$qualifier)
+	funcs_sub$qualifier <- gsub('low', '', funcs_sub$qualifier)
+	
+	funcs_sub[order('category', 'qualifier', 'quantity', 'TaxType')]
+	
 	

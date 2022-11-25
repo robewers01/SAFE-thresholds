@@ -363,7 +363,10 @@ fit.models <- function(full_data, func_data = NA, lidar, predictor, min.observs 
 		}
 	
 	#Remove any taxa with no taxonomic information
-	coefs <- coefs[-grep('Unknown', coefs$taxon), ]
+	todelete <- grep('Unknown', coefs$taxon)
+	if(length(todelete) > 0){
+		coefs <- coefs[-todelete, ]
+		}
 	
 #	return(list(coefs = coefs, models = models))
 	return(coefs)
@@ -829,6 +832,7 @@ extract.func <- function(func_groups){
 	dev <- grep('Development', groups)
 		#Exclusions
 		exclusions <- exclude.alltaxa
+		exclusions <- c(exclusions, grep('Bird', groups), grep('Mammal', groups), grep('Arachnid', groups), grep('Ant', groups), grep('Reptile', groups), grep('Fish', groups))
 	dev <- dev[is.na(match(dev, exclusions))]
 	to.retain <- c(to.retain, dev)
 	func.categ <- c(func.categ, rep('Development', length(dev)))
@@ -855,7 +859,7 @@ extract.func <- function(func_groups){
 	#Diet generalism
 	dg <- grep('DietGen', groups)
 	to.retain <- c(to.retain, dg[1])
-	func.categ <- c(func.categ, rep('Trophic', length(dg[1])))
+	func.categ <- c(func.categ, rep('Diet', length(dg[1])))
 	#Plants
 	plant <- grep('Plant', groups)
 	to.retain <- c(to.retain, plant[-grep('_Plant', groups[plant])])
@@ -873,6 +877,9 @@ extract.func <- function(func_groups){
 	out$taxon[grep('Mammal', out$group)] <- 'Mammal'
 	out$taxon[grep('Plant', out$group)] <- 'Plant'
 	out$taxon[grep('Fish', out$group)] <- 'Fish'
+	out$taxon[grep('Arachnid', out$group)] <- 'Arachnid'
+	out$taxon[grep('Insect', out$group)] <- 'Insect'
+	out$taxon[grep('Ant', out$group)] <- 'Ant'
 	
 	return(out)
 	}
@@ -997,10 +1004,10 @@ find.egs <- function(Function, function_qual, taxtype = NA,
 
 	poss_coefs <- turn_points[possmatch, ]
 	if(func.dir == 'positive'){
-		finalset <- poss_coefs$taxon[poss_coefs$slope > 0 & poss_coefs$pval < 0.05]
+		finalset <- poss_coefs$taxon[poss_coefs$slope > 0]# & poss_coefs$pval < 0.1]
 		}
 	if(func.dir == 'negative'){
-		finalset <- poss_coefs$taxon[poss_coefs$slope < 0& poss_coefs$pval < 0.05]
+		finalset <- poss_coefs$taxon[poss_coefs$slope < 0]# & poss_coefs$pval < 0.1]
 		}
 	
 	return(sort(finalset))
@@ -1081,6 +1088,7 @@ arrange.funcplot <- function(func_groups, func_points, pal = NA){
 	funcs <- funcs[!duplicated(funcs), ]
 	#Exclude groups with impacts that only start/end at the ends of the gradient
 	funcs <- funcs[-which(funcs$turn.point == funcs$maxrate), ]
+	funcs <- funcs[-which(funcs$turn.point > funcs$maxrate), ]
 	
 	#Sort data
 	funcs$category <- factor(funcs$category, levels = c('Red List status', 'Habitat strata', 
@@ -1104,8 +1112,8 @@ arrange.funcplot <- function(func_groups, func_points, pal = NA){
 	funcs$lty <- 1
 	funcs$lty[funcs$slope < 0] <- 2
 	#symbol types
-	types <- c('all taxa', 'invertebrate', 'amphibian', 'bird', 'fish', 'mammal', 'plant')
-	pchtypes <- c(21:25,8,12)
+	types <- c('all taxa', 'invertebrate', 'insect', 'amphibian', 'bird', 'fish', 'mammal', 'plant')
+	pchtypes <- c(21:25,8,12, 13)
 	pchmatch <- data.frame(cbind(types, pchtypes))
 	funcs$pch <- as.numeric(pchmatch$pchtypes[match(funcs$TaxType, pchmatch$types)])
 	
@@ -1172,7 +1180,7 @@ expand.funcs <- function(taxa){
 	taxa$TaxonType <- firstup(taxa$TaxonType)
 	
 #	taxon_cat <- sort(unique(taxa$TaxonCat))
-	taxon_groups <- c('Plant', 'Invertebrate', 'Amphibian', 'Bird', 'Fish', 'Mammal', 'Reptile')		#Only groups not already represented in taxon_cat
+	taxon_groups <- c('Plant', 'Invertebrate', 'Insect', 'Ant', 'Arachnid', 'Amphibian', 'Bird', 'Fish', 'Mammal', 'Reptile')		#Only groups not already represented in taxon_cat
 	for(i in 16:ncol(taxa)){
 		orig <- taxa[, i]						#Select the trait
 #		for(k in 1:length(taxon_cat)){			#Iterate through each taxon category
@@ -1185,11 +1193,13 @@ expand.funcs <- function(taxa){
 #			}
 		for(j in 1:length(taxon_groups)){	#Iterate through each taxon group
 			tax_ind <- which(taxa$TaxonType == taxon_groups[j])
-			new_entry <- rep(NA, nrow(taxa))
-			new_entry[tax_ind] <- taxa[tax_ind, i]
-			taxa <- cbind(taxa, new_entry)
-			names(taxa)[ncol(taxa)] <- paste(names(taxa)[i], taxon_groups[j], sep = '_')
-			rm(new_entry)
+			if(length(tax_ind) > 0){
+				new_entry <- rep(NA, nrow(taxa))
+				new_entry[tax_ind] <- taxa[tax_ind, i]
+				taxa <- cbind(taxa, new_entry)
+				names(taxa)[ncol(taxa)] <- paste(names(taxa)[i], taxon_groups[j], sep = '_')
+				rm(new_entry)
+				}
 			}
 		}
 	#Delete empty trait columns
@@ -1215,15 +1225,17 @@ func.cats <- function(taxa){
 	num_traits <- names(taxa[sapply(taxa, is.numeric)])
 	for(i in 1:length(num_traits)){
 		col_ind <- match(num_traits[i], names(taxa))
-		if(length(grep('Body', num_traits[i])) == 1){
-			new_entry <- as.character(cat.data(taxa[, col_ind], num.cats = 3, reverse = FALSE))
-			}else{
-				new_entry <- as.character(cat.data(taxa[, col_ind], num.cats = 2, reverse = FALSE))
+		if(!is.na(col_ind)){	
+			if(length(grep('Body', num_traits[i])) == 1){
+				new_entry <- as.character(cat.data(taxa[, col_ind], num.cats = 3, reverse = FALSE))
+				}else{
+					new_entry <- as.character(cat.data(taxa[, col_ind], num.cats = 2, reverse = FALSE))
+					}
+			if(length(unique(new_entry)) >= 2){			#Only keep if multiple categories can be identified
+				taxa <- cbind(taxa, new_entry)
+				names(taxa)[ncol(taxa)] <- paste(names(taxa)[col_ind], 'Categorised', sep = '_')
+				rm(new_entry)
 				}
-		if(length(unique(new_entry)) >= 2){			#Only keep if multiple categories can be identified
-			taxa <- cbind(taxa, new_entry)
-			names(taxa)[ncol(taxa)] <- paste(names(taxa)[col_ind], 'Categorised', sep = '_')
-			rm(new_entry)
 			}
 		}
 	
@@ -1532,26 +1544,28 @@ resil.func <- function(func_groups, func_points, turns){
 		for(j in 1:length(func_type)){		#For each functional type
 			targ_taxa <- rownames(func_groups)[which(targ_col == func_type[j])]		#List of taxa belonging to that functional type
 			indices <- match(targ_taxa, turns$taxon)
-			indices <- indices[!is.na(indices)]			#Row numbers for taxa that were modelled
-			sub_turns <- turns[indices, ]
-			sub_turns$TaxonType <- factor(paste(func_targ, func_type[j], sep = '_'))
-			#Bootstrap sensitivity and susceptibility values
-			susc_boot <- boot.susc(turns_out = sub_turns)	
-			#Calculate susceptibility
-			func <- function(x) sum(!is.na(x))/length(x)
-			prop_imp <- by(sub_turns$turn.point, factor(sub_turns$TaxonType), FUN = func)	#Proportion taxa with turning points
-			susc_boot$susc$prop_imp <- prop_imp
-			#Calculate sensitivity
-			gen_turns <- sub_turns$turn.point
-			gen_turns[is.na(gen_turns)] <- 100
-			mean.turn <- 1 - by(gen_turns, sub_turns$TaxonType, FUN = mean, na.rm = TRUE) / 100	#Mean turning point
-			susc_boot$sens$mean.turn <- mean.turn
+			if(sum(is.na(indices)) < length(indices)){
+				indices <- indices[!is.na(indices)]			#Row numbers for taxa that were modelled
+				sub_turns <- turns[indices, ]
+				sub_turns$TaxonType <- factor(paste(func_targ, func_type[j], sep = '_'))
+				#Bootstrap sensitivity and susceptibility values
+				susc_boot <- boot.susc(turns_out = sub_turns)	
+				#Calculate susceptibility
+				func <- function(x) sum(!is.na(x))/length(x)
+				prop_imp <- by(sub_turns$turn.point, factor(sub_turns$TaxonType), FUN = func)	#Proportion taxa with turning points
+				susc_boot$susc$prop_imp <- prop_imp
+				#Calculate sensitivity
+				gen_turns <- sub_turns$turn.point
+				gen_turns[is.na(gen_turns)] <- 100
+				mean.turn <- 1 - by(gen_turns, sub_turns$TaxonType, FUN = mean, na.rm = TRUE) / 100	#Mean turning point
+				susc_boot$sens$mean.turn <- mean.turn
 
-			sens <- rbind(sens, susc_boot$sens)
-			susc <- rbind(susc, susc_boot$susc)
-			num_taxa <- c(num_taxa, nrow(sub_turns))
-			
-			rm(susc_boot)
+				sens <- rbind(sens, susc_boot$sens)
+				susc <- rbind(susc, susc_boot$susc)
+				num_taxa <- c(num_taxa, nrow(sub_turns))
+				
+				rm(susc_boot)
+				}
 			}
 		}
 	#Only retain functional types with >= 5 taxa
@@ -1683,58 +1697,6 @@ repeat.visits <- function(full.data){
 	return(out)
 	}
 
-
-###################################################################################
-###################################################################################
-
-
-#Function to create taxon x dataset list
-taxon.dataset <- function(full_data){
-	#full_data = output from taxa.clean
-
-	taxa.dataset <- NA
-	for(i in 1:length(full_data)){
-		comm.out <- full_data[[i]]$comm.out
-		if(!is.data.frame(taxa.dataset)){	
-			if(ncol(comm.out) > 4){
-				taxa.dataset <- as.data.frame(matrix(colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE),
-						nrow = length(4:ncol(comm.out)), ncol = 1))
-				}else{
-					taxa.dataset <- as.data.frame(matrix(sum(comm.out[, 4], na.rm = TRUE),
-						nrow = length(4:ncol(comm.out)), ncol = 1))
-					}
-			rownames(taxa.dataset) <- names(comm.out)[4:ncol(comm.out)]
-			colnames(taxa.dataset) <- full_data[[i]]$data.name
-			}else{
-				taxa.dataset <- cbind(taxa.dataset, matrix(NA, nrow(taxa.dataset), ncol = 1))
-					names(taxa.dataset)[ncol(taxa.dataset)] <- full_data[[i]]$data.name
-				matched.taxa <- match(names(comm.out)[4:ncol(comm.out)], rownames(taxa.dataset))
-					matched.taxa2 <- matched.taxa[!is.na(matched.taxa)]
-				if(length(matched.taxa2) > 0){	
-					if(ncol(comm.out) > 4){
-						taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- 
-							colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[which(!is.na(matched.taxa))]
-						}else{
-							taxa.dataset[matched.taxa2, ncol(taxa.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)
-							}
-					}
-				new.taxa <- names(comm.out)[4:ncol(comm.out)][is.na(matched.taxa)]
-					new.taxa <- new.taxa[!is.na(new.taxa)]
-				if(length(new.taxa) > 0){	
-					new.dataset <- as.data.frame(matrix(NA, nrow = length(new.taxa), ncol = ncol(taxa.dataset)))
-						names(new.dataset) <- names(taxa.dataset)
-						rownames(new.dataset) <- new.taxa
-				if(ncol(comm.out) > 4){	
-					new.dataset[ , ncol(new.dataset)] <- colSums(comm.out[, 4:ncol(comm.out)], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
-					}else{
-						new.dataset[ , ncol(new.dataset)] <- sum(comm.out[, 4], na.rm = TRUE)[match(new.taxa, names(comm.out))-3]
-						}
-					taxa.dataset <- rbind(taxa.dataset, new.dataset)
-					}
-				}
-		}
-	return(taxa.dataset)
-	}
 
 ###################################################################################
 ###################################################################################

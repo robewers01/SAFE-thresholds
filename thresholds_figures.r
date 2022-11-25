@@ -20,7 +20,7 @@
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
 		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$modtype), ]	#Remove taxa that weren't found for analyses
 	fitted_func <- readRDS('results/fitted_func.rds')
-		fitted_func <- fitted_func[!is.na(fitted_func$num.occs), ]	#Remove taxa that weren't found for analyses
+		fitted_func <- fitted_func[!is.na(fitted_func$num.occs), ]	#Remove groups that weren't found for analyses
 	turn_points <- readRDS('results/turn_points.rds')
 	func_points <- readRDS('results/func_points.rds')
 #	break_points <- readRDS('results/break_points.rds')
@@ -254,67 +254,76 @@ png('figures/fig3.png', width = 500, height = 500)
 {
 	par(mai = c(0.8, 0.1, 0.1, 0.1))
 	par(oma = c(0, 0, 0, 0))
-	#pal <- paletteer_d("ggthemes::excel_Aspect")
-	pal <- paletteer_d("Redmonder::qPBI")
+	pal <- paletteer_d("ggthemes::Miller_Stone")
 	
 	#Get and filter data
 	funcs_full <- arrange.funcplot(func_groups = func.groups, func_points = func_points, pal = pal)
 	funcs <- funcs_full$summary
 	pchmatch <- funcs_full$pchmatch
+	taxlower <- tolower(funcs$TaxType)
+	funcs$pch <- as.numeric(pchmatch$pchtypes[match(taxlower, pchmatch$types)])
 	
-	#plot figure
-	plot(0,0, xlim = c(-55,242), ylim = c(1, nrow(funcs) + 10), col = 'white', 
-		xlab = '', ylab = '',  yaxt = 'n', xaxt = 'n', cex.lab = 2.5, cex.axis = 2)
-	axis(1, at = c(0, 50, 100), cex.axis = 1.5)
-	axis(1, at = c(140, 190, 240), labels = c('0.0', '0.5', '1.0'), cex.axis = 1.5)
+	#PANEL A: CRITICAL THRESHOLDS AND TURNOVER
+	{
+		#plot figure
+		plot(0,0, xlim = c(-55,242), ylim = c(1, nrow(funcs) + 10), col = 'white', 
+			xlab = '', ylab = '',  yaxt = 'n', xaxt = 'n', cex.lab = 2.5, cex.axis = 2)
+		axis(1, at = c(0, 50, 100), cex.axis = 1.5)
+		axis(1, at = c(140, 190, 240), labels = c('0.0', '0.5', '1.0'), cex.axis = 1.5)
 
-	#Add data
-	for(i in 1:nrow(funcs)){
-		points(x = funcs$turn.point[i], y = i, pch = funcs$pch[i], col = funcs$col[i], lty = funcs$lty[i])
-		if(!is.na(funcs$maxrate[i]) & !(funcs$maxrate[i] == 100 & funcs$turn.point[i] == 100)){
-		#	points(x = funcs$maxrate[i], y = i, pch = funcs$pch[i], col = funcs$col[i], lty = funcs$lty[i])
-			arrows(x0 = funcs$turn.point[i], y0 = i, x1 = funcs$maxrate[i], y1 = i, 
-				col = funcs$col[i], lty = funcs$lty[i],
-				angle = 20, length =0.07)
+		#Add data
+		for(i in 1:nrow(funcs)){
+			points(x = funcs$turn.point[i], y = i, pch = funcs$pch[i], col = funcs$col[i], lty = funcs$lty[i])
+			if(!is.na(funcs$maxrate[i]) & !(funcs$maxrate[i] == 100 & funcs$turn.point[i] == 100)){
+			#	points(x = funcs$maxrate[i], y = i, pch = funcs$pch[i], col = funcs$col[i], lty = funcs$lty[i])
+				arrows(x0 = funcs$turn.point[i], y0 = i, x1 = funcs$maxrate[i], y1 = i, 
+					col = funcs$col[i], lty = funcs$lty[i],
+					angle = 20, length =0.07)
+				}
+			text(x = -7, y = i, funcs$qualifier [i], cex = 0.6, adj = c(1, 0.5), col = funcs$col[i])
 			}
-		text(x = -7, y = i, funcs$qualifier [i], cex = 0.6, adj = c(1, 0.5), col = funcs$col[i])
-		}
+		
+	}
 
-	#Add resilience data
-	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points)
-	new <- merge(funcs, resil_func$summary)
-	new <- new[order(new$category, new$qualifier, new$TaxType, new$turn.point), ]
+	#PANEL B: RESILIENCE
+	{
+		#Add resilience data
+		resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points2$dataset)
+		new <- resil_func$funcs
+			#Add in groups for which resilience couldn't be estimated (<5 taxa per group)
+			funcs$resilience[match(new$taxon, funcs$taxon)] <- resil_func$funcs$resilience
+			funcs$sens[match(new$taxon, funcs$taxon)] <- resil_func$sens$mean.turn
+			funcs$susc[match(new$taxon, funcs$taxon)] <- resil_func$susc$prop_imp
+			new <- funcs
+		new <- new[order(new$category, new$qualifier, new$TaxType, new$turn.point), ]
+		
+		xmin = 140
+		for(i in 1:nrow(new)){
+			ymin <- i - 0.4
+			ymax <- i + 0.4
+			xmax <- xmin + new$resilience[i]*100
+			polygon(x = c(xmin, xmin, xmax, xmax), y = c(ymin, ymax, ymax, ymin), 
+				col = alpha(new$col[i], 0.3))
+			points(x = xmin + new$sens[i]*100, i, pch = 1, cex = 1.2)#, col = alpha(new$col[i], 0.9))
+			points(x = xmin + new$susc[i]*100, i, pch = 2, cex = 1)#, col = alpha(new$col[i], 0.9))
+			}
+	}
 	
-	xmin = 140
-	for(i in 1:nrow(new)){
-		ymin <- i - 0.4
-		ymax <- i + 0.4
-		xmax <- xmin + new$resilience[i]*100
-		polygon(x = c(xmin, xmin, xmax, xmax), y = c(ymin, ymax, ymax, ymin), 
-			col = alpha(new$col[i], 0.3))
-		points(x = xmin + new$sensitivity[i]*100, i, pch = 19, col = alpha(new$col[i], 0.9))
-		points(x = xmin + new$susceptibility[i]*100, i, pch = 17, col = alpha(new$col[i], 0.9))
-		}
-
 	#Add legend and labels
 	abline(nrow(funcs) + 1, 0, lwd = 1)
 	polygon(x = c(120, 120, 350, 350), y = c(-10, nrow(funcs)+1, nrow(funcs)+1, -10))
 	#Add categories
 	cats <- unique(funcs$category)
 		cats <- cats[!is.na(cats)]
-	yvals <- c(rep(nrow(funcs)+4.5, 4), rep(nrow(funcs)+2.5, 4))
-	xvals <- rep(seq(-18, 201, 63) ,2)
-	for(k in 1:length(cats)){
-		polycol <- funcs$col[which(funcs$category == cats[k])[1]]
-		text(x = xvals[k]+2, y = yvals[k], cats[k], cex = 0.75, adj = 0, col = polycol)
-		points(xvals[k] - 8, yvals[k], pch = 15, cex = 1.5, col = polycol)
-		}
+		cats <- droplevels(cats, exclude = 'Physiology')
 
-	legend('top', legend = c('increasing', 'decreasing', pchmatch$types, 'sensitivity', 'susceptibility', ''), 
-		pch = c(NA, NA, as.numeric(pchmatch$pchtypes), 19, 17, NA),
-		lty = c(1, 2, rep(0, nrow(pchmatch)+2), NA),
-		lwd = c(2,2, rep(1, nrow(pchmatch)+2), NA),
-		bty = 'n', pt.cex = 1.2, ncol = 4, x.intersp = 0.6, cex = 0.8)
+	legend('top', legend = c(pchmatch$types, NA, NA, 'increasing', 'decreasing', 'sensitivity', 'susceptibility', NA, rev(levels(cats))), 
+		pch = c(as.numeric(pchmatch$pchtypes), NA, NA, NA, NA, 1, 2, NA, rep(15, length(cats))),
+		lty = c(rep(0, nrow(pchmatch)), NA, NA, 1, 2, NA, rep(NA, length(cats))),
+		lwd = c(rep(1, nrow(pchmatch)), NA, NA, 2,2, NA, rep(NA, length(cats))),
+		col = c(rep('black', length(pchmatch$types) + 7), rev(unique(funcs$col))),
+		bty = 'n', pt.cex = 1.2, ncol = 5, x.intersp = 0.6, cex = 0.8)
+	
 	text(x = 110, y = nrow(funcs)-0.5, labels = c('(A)'), cex = 1.2)
 	text(x = 243, y = nrow(funcs)-0.5, labels = c('(B)'), cex = 1.2)
 	mtext('Biomass reduction (%)', 1, line = 2.5, at = 50, cex = 1.3)
