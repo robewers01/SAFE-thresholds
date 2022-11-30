@@ -27,7 +27,7 @@
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
 	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
 	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
-		bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
+#	bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
 
 
 ##FIGURE 1: MAIN RESULTS
@@ -304,8 +304,8 @@ png('figures/fig3.png', width = 500, height = 500)
 			xmax <- xmin + new$resilience[i]*100
 			polygon(x = c(xmin, xmin, xmax, xmax), y = c(ymin, ymax, ymax, ymin), 
 				col = alpha(new$col[i], 0.3))
-			points(x = xmin + new$sens[i]*100, i, pch = 1, cex = 1.2)#, col = alpha(new$col[i], 0.9))
-			points(x = xmin + new$susc[i]*100, i, pch = 2, cex = 1)#, col = alpha(new$col[i], 0.9))
+			points(x = xmin + new$sens[i]*100, i, pch = 24, cex = 1, bg = 'grey')
+			points(x = xmin + new$susc[i]*100, i, pch = 25, cex = 1, bg = 'grey')
 			}
 	}
 	
@@ -317,11 +317,11 @@ png('figures/fig3.png', width = 500, height = 500)
 		cats <- cats[!is.na(cats)]
 		cats <- droplevels(cats, exclude = 'Physiology')
 
-	legend('top', legend = c(pchmatch$types, NA, NA, 'increasing', 'decreasing', 'sensitivity', 'susceptibility', NA, levels(cats)), 
+	legend('top', legend = c(pchmatch$types, NA, NA, 'increasing', 'decreasing', 'sensitivity', 'susceptibility', NA, rev(levels(cats))), 
 		pch = c(as.numeric(pchmatch$pchtypes), NA, NA, NA, NA, 1, 2, NA, rep(15, length(cats))),
 		lty = c(rep(0, nrow(pchmatch)), NA, NA, 1, 2, NA, rep(NA, length(cats))),
 		lwd = c(rep(1, nrow(pchmatch)), NA, NA, 2,2, NA, rep(NA, length(cats))),
-		col = c(rep('black', length(pchmatch$types) + 7), unique(funcs$col)),
+		col = c(rep('black', length(pchmatch$types) + 7), rev(unique(funcs$col))),
 		bty = 'n', pt.cex = 1.2, ncol = 5, x.intersp = 0.6, cex = 0.8)
 	
 	text(x = 110, y = nrow(funcs)-0.5, labels = c('(A)'), cex = 1.2)

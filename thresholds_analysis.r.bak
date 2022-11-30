@@ -13,7 +13,7 @@
 	thresh.data <- readRDS("data/threshold_taxa_data.rds")	#Site x species matrix for each dataset, containing only taxa that are duplicated across >1 dataset
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
 	func.groups <- readRDS('data/functional_groups.rds')	#Functional groups
-	bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
+#	bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
 	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
 	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
@@ -61,6 +61,12 @@
 		nrow(fitted_thresh)		#all taxa
 	#Number of functional groups
 		nrow(fitted_func)	
+	#Survey information
+		sum(rowSums(!is.na(taxaXdata)) > 1)				#Number of taxa in >1 survey
+		sum(rowSums(!is.na(taxaXdata)) > 1) / nrow(taxaXdata)	#As a proportion
+		visits <- repeat.visits(thresh.data)
+		sum(visits$mean.visits > 1)					#Number surveys with >1 visit
+		sum(visits$mean.visits > 1)/nrow(visits)	#as proportion
 	#Number of modelled taxa
 		sum(!is.na(fitted_thresh$modtype))
 	#Higher order taxa
@@ -72,19 +78,11 @@
 		length(which(taxa_cats$matched.taxa$order == 'Lepidoptera'))	#Number of leps
 		length(which(taxa_cats$matched.taxa$family == 'Formicidae'))	#Number of ants
 		length(which(taxa_cats$dataset$TaxonType == 'Arachnid'))		#Number of spiders
-	#Survey information
-		sum(rowSums(!is.na(taxaXdata)) > 1)				#Number of taxa in >1 survey
-		sum(rowSums(!is.na(taxaXdata)) > 1) / nrow(taxaXdata)	#As a proportion
-		visits <- repeat.visits(thresh.data)
-		sum(visits$mean.visits > 1)					#Number surveys with >1 visit
-		sum(visits$mean.visits > 1)/nrow(visits)	#as proportion
 	#Functional groups
+		log10(maxsize$BodyMass[1]) - log10(minsize$BodyMass[1])		#Orders of magnitude in body size
 		minsize <- print(func.groups[which(func.groups$BodyMass == min(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
 		maxsize <- print(func.groups[which(func.groups$BodyMass == max(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
-		log10(maxsize$BodyMass[1]) - log10(minsize$BodyMass[1])		#Orders of magnitude in body size
 		func.summary(func_groups = func.groups)
-
-
 
 	#Number of taxa instantly impacted
 		sum(turn_points$dataset$turn.point == 0, na.rm = TRUE)
@@ -217,25 +215,11 @@
 		summary(factor(fitted_func$modtype))
 		summary(factor(fitted_func$modtype)) / (nrow(fitted_func) - sum(is.na(fitted_func$modtype)))
 	
-	
-
 #Table S1
 	summarise.data(thresh.data)
+	#write.csv(summarise.data(thresh.data), 'figures/tableS1.csv')
 	
 #Table S2
-
-	funcs <- rename.funcs(func_groups = func.groups, func_points = func_points)
-	funcs_sub <- funcs[ , c('category', 'qualifier', 'TaxType')]
-	funcs_sub$quantity <- NA
-		funcs_sub$quantity[grep('high', funcs_sub$qualifier)] <- 'high'
-		funcs_sub$quantity[grep('medium', funcs_sub$qualifier)] <- 'medium'
-		funcs_sub$quantity[grep('low', funcs_sub$qualifier)] <- 'low'
-		levels(funcs_sub$quantity) <- c('low', 'medium', 'high')
-	funcs_sub$qualifier <- gsub('-', '', funcs_sub$qualifier)
-	funcs_sub$qualifier <- gsub('high', '', funcs_sub$qualifier)
-	funcs_sub$qualifier <- gsub('medium', '', funcs_sub$qualifier)
-	funcs_sub$qualifier <- gsub('low', '', funcs_sub$qualifier)
-	
-	funcs_sub[order('category', 'qualifier', 'quantity', 'TaxType')]
-	
+	sort.funcs(func_groups = func.groups)
+	#write.csv(sort.funcs(func_groups = func.groups), 'figures/tableS2.csv')
 	

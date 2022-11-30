@@ -783,36 +783,37 @@ extract.func <- function(func_groups){
 		}
 	groups <- groups[!num.col]
 	#Exclude unnecessary taxonomic information
-	groups <- groups[-c(1:12,15)]
+	groups <- groups[-c(1:12)]
 	
 	to.retain <- NULL	#Vector to store indices to desired groups
 	func.categ <- NULL	#Vector to record broad categories of groups
 	keeps <- grep('_', groups)
 	exclude.alltaxa <- (1:length(groups))[-keeps]	#functional groups relating to individual taxa
+
 	#Body mass by taxon
 	to.retain <- c(to.retain, grep('BodyMass', groups))
 		#Exclusions
 		exclusions <- exclude.alltaxa
-		exclusions <- c(exclusions, which(groups == 'BodyMass_Categorised'))
+		exclusions <- c(exclusions, which(groups == 'BodyMass_Categorised'), grep('Reptile', groups))
 	to.retain <- to.retain[is.na(match(to.retain, exclusions))]
-#	to.retain <- c(to.retain, to.retain)
 	func.categ <- rep('Body mass', length(to.retain))
 	#Movement by taxon
 	movement <- grep('Movement', groups)
 		#Exclusions
-		exclusions <- exclude.alltaxa
+		exclusions <- c(grep('Amphibian', groups), grep('Bird', groups), grep('Ant', groups), grep('Arachnid', groups), grep('Fish', groups), grep('Plant', groups))
 	movement <- movement[is.na(match(movement, exclusions))]
 	to.retain <- c(to.retain, movement)
 	func.categ <- c(func.categ, rep('Movement', length(movement)))
 	#Strata types by taxon
 	strata <- grep('Stra', groups)
 		#Exclusions
-		exclusions <- exclude.alltaxa
-		#Exclude all taxa types combined
 		#Exclude life history variation
-		exclusions <- c(exclusions, grep('StraLifeHist', groups))
+		exclusions <- grep('StraLifeHist', groups)
 		#Exclude generalism index
 		exclusions <- c(exclusions, grep('StrataGeneralism', groups))
+		#Exclude taxa with no meaningful comparisons
+		exclusions <- c(exclusions, grep('Ant', groups), grep('Arachnid', groups), grep('Fish', groups), grep('Invertebrate', groups), grep('Plant', groups))
+		
 	strata <- strata[is.na(match(strata, exclusions))]
 	to.retain <- c(to.retain, strata)
 	func.categ <- c(func.categ, rep('Habitat strata', length(strata)))
@@ -831,9 +832,8 @@ extract.func <- function(func_groups){
 	#Development
 	dev <- grep('Development', groups)
 		#Exclusions
-		exclusions <- exclude.alltaxa
-		exclusions <- c(exclusions, grep('Bird', groups), grep('Mammal', groups), grep('Arachnid', groups), grep('Ant', groups), grep('Reptile', groups), grep('Fish', groups))
-	dev <- dev[is.na(match(dev, exclusions))]
+		excl <- c(grep('Amphibian', groups), grep('Bird', groups), grep('Mammal', groups), grep('Arachnid', groups), grep('Ant', groups), grep('Reptile', groups), grep('Fish', groups))
+	dev <- dev[is.na(match(dev, excl))]
 	to.retain <- c(to.retain, dev)
 	func.categ <- c(func.categ, rep('Development', length(dev)))
 	#Physiology
@@ -842,8 +842,11 @@ extract.func <- function(func_groups){
 	func.categ <- c(func.categ, rep('Physiology', length(phys[-grep('_', groups[phys])])))
 	#Sociality
 	social <- grep('Sociality', groups)
-	to.retain <- c(to.retain, social[-grep('_', groups[social])])
-	func.categ <- c(func.categ, rep('Sociality', length(social[-grep('_', groups[social])])))
+		#Exclusions
+		excl <- c(grep('Ant', groups), grep('Arachnid', groups), grep('Fish', groups), grep('Invertebrate', groups), grep('Plant', groups), grep('Reptile', groups))
+	social <- social[is.na(match(social, excl))]
+	to.retain <- c(to.retain, social)
+	func.categ <- c(func.categ, rep('Sociality', length(social)))
 	#Trophic
 	trophic <- grep('Troph', groups)
 	to.retain <- c(to.retain, trophic[-grep('_', groups[trophic])])
@@ -871,7 +874,7 @@ extract.func <- function(func_groups){
 	#Add taxon column
 	out$taxon <- rep('all taxa', nrow(out))
 	out$taxon[grep('Bird', out$group)] <- 'Bird'
-	out$taxon[grep('Invert', out$group)] <- 'Invertebrate'
+	out$taxon[grep('Invertebrate', out$group)] <- 'Invertebrate'
 	out$taxon[grep('Amphibian', out$group)] <- 'Amphibian'
 	out$taxon[grep('Reptile', out$group)] <- 'Reptile'
 	out$taxon[grep('Mammal', out$group)] <- 'Mammal'
@@ -908,15 +911,28 @@ rename.taxtypes <- function(taxtypes){
 
 
 #Function to categorise and name functional groups
-rename.funcs <- function(func_groups, func_points){
+rename.funcs <- function(func_groups, func_points = NA){
 		#func_groups = functional groups data
 		#func_points = output from turns applied to functional groups
-		
-	newfuncs <- func_points
-	newfuncs$taxon <- rename.taxtypes(newfuncs$taxon)
-	funcs <- extract.func(func_groups)
+			#NB: Not used anymore...
+			
+	taxa.lists <- taxaXfunc(func_groups = func_groups)
+	fullfuncs <- names(taxa.lists$taxon.lists)
+	funcs <- taxa.lists$functional.groups
+	newfuncs <- data.frame(taxon = fullfuncs)
+
+	aligned <- sapply(funcs$group, grep, fullfuncs, value = TRUE)
+	#Manual exclusions to the alignments
+	aligned$Movement <- aligned$Movement[1:3]
+	aligned$Development <- aligned$Development[1:2]
+	aligned$StraUnd <- aligned$StraUnd[1]
+	aligned$StraAqu <- aligned$StraAqu[1]
+	aligned$StraAer <- aligned$StraAer[1]
+	aligned$StraArb <- aligned$StraArb[1]
+	aligned$StraTerr <- aligned$StraTerr[1]
+	aligned$StraSub <- aligned$StraSub[1]
+	aligned$Sociality <- aligned$Sociality[1:4]
 	
-	aligned <- sapply(funcs$group, grep, newfuncs$taxon, value = TRUE)
 	aligned.data <- data.frame(matrix(NA, nrow = 0, ncol = 2))
 	for(i in 1:length(aligned)){
 		full <- aligned[[i]]
@@ -963,7 +979,7 @@ rename.funcs <- function(func_groups, func_points){
 	newfuncs$fullname <- paste(newfuncs$category, newfuncs$qualifier, newfuncs$TaxType, sep = '-')
 	newfuncs$description <- paste(newfuncs$category, newfuncs$qualifier, sep = '-')
 	
-	return(newfuncs)
+	return(newfuncs)	
 	}
 
 ###################################################################################
@@ -982,6 +998,7 @@ find.egs <- function(Function, function_qual, taxtype = NA,
 	
 	#Find slope of functional group
 	funcs <- rename.funcs(func_groups = func.groups, func_points = func_points)
+	funcs <- merge(funcs, func_points, by = 'taxon')
 	if(is.na(taxtype)){
 		fullname <- paste(Function, function_qual, sep = '_')
 		}else{
@@ -991,26 +1008,35 @@ find.egs <- function(Function, function_qual, taxtype = NA,
 	if(funcslope > 0) func.dir = 'positive' 
 	if(funcslope < 0) func.dir = 'negative'
 
+	#Extract set of taxa to check
+	d <- taxaXfunc(func_groups)
+	possibles <- d$taxon.lists[which(names(d$taxon.lists) == fullname)]
 
-	column <- which(names(func_groups) == Function)
-	rows <- which(func_groups[, column] == function_qual)
-	if(!is.na(taxtype)){
-		taxcols <- which(func_groups$TaxonType == taxtype)
-		rows <- intersect(taxcols, rows)
-		}
-	possibles <- func_groups$taxon_name[rows]
-	possmatch <- match(possibles, turn_points$taxon)
+#	column <- which(names(func_groups) == Function)
+#	rows <- which(func_groups[, column] == function_qual)
+#	if(!is.na(taxtype)){
+#		taxcols <- which(func_groups$TaxonType == taxtype)
+#		rows <- intersect(taxcols, rows)
+#		}
+#	possibles <- func_groups$taxon_name[rows]
+	possmatch <- match(possibles[[1]], turn_points$taxon)
 	possmatch <- possmatch[!is.na(possmatch)]
 
 	poss_coefs <- turn_points[possmatch, ]
 	if(func.dir == 'positive'){
-		finalset <- poss_coefs$taxon[poss_coefs$slope > 0 & poss_coefs$pval < 0.1]
+		finalset <- poss_coefs$taxon[poss_coefs$slope > 0]# & poss_coefs$pval < 0.1]
 		}
 	if(func.dir == 'negative'){
-		finalset <- poss_coefs$taxon[poss_coefs$slope < 0& poss_coefs$pval < 0.1]
+		finalset <- poss_coefs$taxon[poss_coefs$slope < 0]# & poss_coefs$pval < 0.1]
+		}
+	if(func.dir == 'positive'){
+		strongfinalset <- poss_coefs$taxon[poss_coefs$slope > 0 & poss_coefs$pval < 0.05]
+		}
+	if(func.dir == 'negative'){
+		strongfinalset <- poss_coefs$taxon[poss_coefs$slope < 0 & poss_coefs$pval < 0.05]
 		}
 	
-	return(sort(finalset))
+	return(sort(strong = strongfinalset, weak = finalset))
 	}
 
 ###################################################################################
@@ -1083,6 +1109,9 @@ arrange.funcplot <- function(func_groups, func_points, pal = NA){
 	#pal = colour palette for plotting
 
 	funcs <- rename.funcs(func_groups = func_groups, func_points = func_points)
+	
+	funcs <- merge(funcs, func_points, by = 'taxon')
+	
 	funcs <- funcs[!is.na(funcs$turn.point) ,]
 	funcs <- funcs[!is.na(funcs$category), ]
 	funcs <- funcs[!duplicated(funcs), ]
@@ -1093,16 +1122,23 @@ arrange.funcplot <- function(func_groups, func_points, pal = NA){
 	#Sort data
 	funcs$category <- factor(funcs$category, levels = c('Red List status', 'Habitat strata', 
 		'Plant', 'Physiology', 'Development', 'Sociality', 'Movement', 'Diet', 'Trophic',  'Body mass'))
-	funcs$qualifier <- factor(funcs$qualifier, levels = rev(c('high', 'medium', 'low', 
-		'generalism-high','generalism-low',
-		'aerial', 'arboreal', 'understory', 'terrestrial', 'subterranean', 'aquatic', 'constant', 'variable',
-		'endotherm', 'ectotherm', 'direct', 'indirect', 'social', 'pair', 'solitary', 
-		'winged', 'legless', 'threatened', 'not threatened', 
-		'parasitoid', 'parasite', 'predator', 'herbivore', 'producer', 'saprophage', 
-		'hematophage', 'vertivore', 'invertivore', 'florivore', 'folivore', 'frugivore', 
-		'granivore', 'nectarivore', 'palynivore', 'rhizophage', 'xylophage', 'mycophage', 
-		'necrophage', 'detritivore',
-		rev(funcs$qualifier[funcs$TaxType == 'plant']))))
+	funcs$qualifier <- factor(funcs$qualifier, levels = c('high', 'medium', 'low', 
+		'aerial', 'arboreal', 'understory', 'terrestrial', 'subterranean', 'aquatic', 
+		'endotherm', 'ectotherm', 'direct', 'indirect', 
+		'eusocial', 'social', 'pair', 'solitary', 
+		'winged', 'legged', 'legless', 
+		'threatened', 'not threatened', 
+		'parasitoid', 'parasite', 'hematophage', 
+		'carnivore', 'piscivore', 'vertivore', 'invertivore','bacteriophage', 
+		'herbivore', 'frugivore', 'granivore', 'florivore', 'nectarivore', 'palynivore', 'folivore', 
+		'phloeophage', 'xylophage', 'rhizophage',
+		'algivore','mycophage', 
+		'saprophage', 'coprophage', 'necrophage', 'detritivore', 
+		'saproxylic', 'soilphage', 
+		'producer', 
+		'constant', 'variable',	'generalism','generalism-high','generalism-low',
+		'wood density', 'photosynthesis', 'competitor', 'stress', 'ruderal', 		
+		rev(funcs$qualifier[funcs$TaxType == 'plant'])))
 	
 	funcs <- funcs[order(funcs$category, funcs$qualifier, funcs$TaxType, funcs$turn.point), ]
 	
@@ -1701,3 +1737,52 @@ repeat.visits <- function(full.data){
 ###################################################################################
 ###################################################################################
 
+
+#Function to sort functional groups
+sort.funcs <- function(func_groups){
+	#func_groups = functional traits dataset
+
+	funcs <- rename.funcs(func_groups = func.groups)
+
+
+	funcs_sub <- funcs[ , c('category', 'qualifier', 'TaxType')]
+	funcs_sub$level <- NA
+		funcs_sub$level[grep('high', funcs_sub$qualifier)] <- 'high'
+		funcs_sub$level[grep('medium', funcs_sub$qualifier)] <- 'medium'
+		funcs_sub$level[grep('low', funcs_sub$qualifier)] <- 'low'
+		funcs_sub$level <- factor(funcs_sub$level, levels = c('low', 'medium', 'high'))
+	funcs_sub$qualifier <- gsub('-', '', funcs_sub$qualifier)
+	funcs_sub$qualifier <- gsub('high', '', funcs_sub$qualifier)
+	funcs_sub$qualifier <- gsub('medium', '', funcs_sub$qualifier)
+	funcs_sub$qualifier <- gsub('low', '', funcs_sub$qualifier)
+	funcs_sub$TaxType <- tolower(funcs_sub$TaxType)
+	#Set factor levels for sorting
+	funcs_sub$TaxType <- factor(funcs_sub$TaxType, levels = c('plant', 'invertebrate', 'arachnid', 'insect', 'ant', 'mammal', 'bird', 'reptile', 'amphibian', 'fish', 'all taxa'))
+	funcs_sub$category <- factor(funcs_sub$category, levels = rev(c('Red List status', 
+		'Plant', 'Habitat strata', 'Physiology', 'Development', 'Sociality', 'Movement', 'Diet', 'Trophic',  'Body mass')))
+	funcs_sub$qualifier <- factor(funcs_sub$qualifier, levels = c(#'high', 'medium', 'low', 
+		'aerial', 'arboreal', 'understory', 'terrestrial', 'subterranean', 'aquatic', 
+		'endotherm', 'ectotherm', 'direct', 'indirect', 
+		'eusocial', 'social', 'pair', 'solitary', 
+		'winged', 'legged', 'legless', 
+		'threatened', 'not threatened', 
+		'parasitoid', 'parasite', 'hematophage', 
+		'carnivore', 'piscivore', 'vertivore', 'invertivore','bacteriophage', 
+		'herbivore', 'frugivore', 'granivore', 'florivore', 'nectarivore', 'palynivore', 'folivore', 
+		'phloeophage', 'xylophage', 'rhizophage',
+		'algivore','mycophage', 
+		'saprophage', 'coprophage', 'necrophage', 'detritivore', 
+		'saproxylic', 'soilphage', 
+		'producer', 
+		'constant', 'variable',	'generalism',
+		'wood density', 'photosynthesis', 'competitor', 'stress', 'ruderal', 		
+		rev(funcs$qualifier[funcs_sub$TaxType == 'plant'])))
+	
+	funcs_sub <- funcs_sub[, c(1,3,2,4)]
+	funcs_sub <- funcs_sub[order(funcs_sub$category, funcs_sub$TaxType, funcs_sub$qualifier, funcs_sub$level), ]
+	
+	return(funcs_sub)
+	}
+
+###################################################################################
+###################################################################################
