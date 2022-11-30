@@ -1036,7 +1036,7 @@ find.egs <- function(Function, function_qual, taxtype = NA,
 		strongfinalset <- poss_coefs$taxon[poss_coefs$slope < 0 & poss_coefs$pval < 0.05]
 		}
 	
-	return(sort(strong = strongfinalset, weak = finalset))
+	return(list(strong = sort(strongfinalset), weak = sort(finalset)))
 	}
 
 ###################################################################################

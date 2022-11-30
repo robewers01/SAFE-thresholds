@@ -48,7 +48,7 @@
 	#Number of taxa modelled
 		nrow(turn_points$dataset)
 	#Number of orders containing taxa that were analysed
-		length(unique(taxa_cats$matched.taxa$order))
+		sum(!is.na(phylo$numbers3$propTax))
 	#Number of functional groups
 		nrow(fitted_func)
 	#Conservation thresholds
@@ -70,7 +70,7 @@
 	#Number of modelled taxa
 		sum(!is.na(fitted_thresh$modtype))
 	#Higher order taxa
-		length(unique(taxa_cats$matched.taxa$order))		#Number of orders
+		sum(!is.na(phylo$numbers3$propTax))		#Number of orders (based on TimeTree.org)
 		length(unique(taxa_cats$matched.taxa$genus))		#Number of genera
 		summary(factor(taxa_cats$dataset$TaxonType))		#Taxonomic categories
 		length(which(taxa_cats$dataset$TaxonType == 'Arachnid' | taxa_cats$dataset$TaxonType == 'Invertebrate' | taxa_cats$dataset$TaxonType == 'Insect'))	#Number of invertebrates
@@ -141,42 +141,34 @@
 	anova(lm(resilience ~ category, data = resil_func$funcs))
 
 #Functional composition - example taxa
-	#Body size
-	find.egs(Function = 'BodyMass_Fish_Categorised', function_qual = 'low', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+	#Plants - low photosynthetic capacity
+	find.egs(Function = 'PlantPhotoCap_Categorised', function_qual = 'low', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)$strong
 	#Habitat strata generalists
 	find.egs(Function = 'StrataGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	#Trophic
-	find.egs(Function = 'TrophicGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	#Diet
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)$strong
+	#Dietary generalists
 	find.egs(Function = 'DietGeneralism_Categorised', function_qual = 'high', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	#Parasites
-	find.egs(Function = 'TrophPara', function_qual = 'parasite', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	#Endangered
-	find.egs(Function = 'IUCNthreat', function_qual = 'Threatened', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	#Plants
-	find.egs(Function = 'PlantPhotoCap_Categorised', function_qual = 'high', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	#Social animals
-	find.egs(Function = 'Sociality', function_qual = 'social', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	find.egs(Function = 'Sociality', function_qual = 'pair', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	#Carnivores
-	find.egs(Function = 'DietVert', function_qual = 'vertivore', taxtype = NA, 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)$strong
+	#Trophic specialists
+	find.egs(Function = 'TrophicGeneralism_Categorised', function_qual = 'low', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)$strong
+	#Body size - large amphibians
+	find.egs(Function = 'BodyMass_Amphibian_Categorised', function_qual = 'high', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)$strong
+	#Body size - small fish
+	find.egs(Function = 'BodyMass_Fish_Categorised', function_qual = 'low', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)$strong
+	#Arboreal mammals
+	find.egs(Function = 'StraArb_Mammal', function_qual = 'arboreal', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)$strong
+	#Terrestrial birds
+	find.egs(Function = 'StraTerr_Bird', function_qual = 'terrestrial', taxtype = NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)$strong
 	#Subterranean mammals
-	find.egs(Function = 'StraSub', function_qual = 'subterranean', taxtype = 'mammal', 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	#Subterranean mammals
-	find.egs(Function = 'Movement_Invertebrate', function_qual = 'legless', taxtype = 'mammal', 
-		turn_points = turn_points, func_points = func_points, func_groups = func.groups)
-	
+	find.egs(Function = 'StraSub_Mammal', function_qual = 'subterranean', taxtype =NA, 
+		turn_points = turn_points, func_points = func_points, func_groups = func.groups)$strong
+
 
 #Methods
 	#Taxon x survey combinations
