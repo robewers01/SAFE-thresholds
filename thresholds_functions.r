@@ -12,8 +12,6 @@ align.data <- function(comm.out, lidar, predictor, min.obs = 5){
 	#predictor = dependent variable(s) for analyses
 	#min.obs = minimum number of occurrences needed to model the taxon
 
-	tax <- comm.out[  4:ncol(comm.out)]
-	comm.out[, 4:ncol(comm.out)] <- tax
 	
 	#Add predictor data
 	preds.include <- match(predictor, names(lidar))						#Select just the lidar variables used in analysis
@@ -73,6 +71,53 @@ align.data.multi <- function(taxon, taxa_survey, full_data, lidar, predictor, mi
 		}
 	 return(data.out)
 	 }
+
+###################################################################################
+###################################################################################
+
+
+#Function to generate single, united dataset
+full.data <- function(full_data, lidar, predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000')){
+	#full_data = full dataset containing all data to model
+	#lidar = dataframe containing lidar estimates at point locations
+	#predictor = dependent variable(s) for analyses
+
+	combined_data <- NULL
+	for(i in 1:length(names(full_data))){
+		print(paste('Adding dataset', i, 'out of', length(full_data), sep = ' '))
+		targ_comm <- full_data[[i]]$comm.out
+		targ_data <- align.data(comm.out = targ_comm, lidar, predictor = predictor, min.obs = 5)
+		if(nrow(targ_data) != 0 & ncol(targ_data) > 8){
+			restr_data <- restruct.aligned(aligned = targ_data, data.name = full_data[[i]]$data.name, sample.year = full_data[[i]]$sample.year)
+			combined_data <- rbind(combined_data, restr_data)
+			}
+		}
+		
+	return(combined_data)
+	}
+
+###################################################################################
+###################################################################################
+
+
+#Function to convert aligned site x species matrix to vertical table structure
+restruct.aligned <- function(aligned, data.name, sample.year){
+	#aligned = output from call to align.data
+	#data.name = name of the study
+	#sample.year = year the data were collected
+	
+	new_data <- NULL
+	for(i in 9:ncol(aligned)){
+		dat_extract <- aligned[, c(1:8, i), ]
+		dat_extract$taxon <- names(aligned)[i]
+		names(dat_extract)[9] <- 'presence'
+		dat_extract$year <- sample.year
+		dat_extract$studyID <- data.name
+		new_data <- rbind(new_data, dat_extract)
+		}
+	
+	return(new_data)
+	}
 
 ###################################################################################
 ###################################################################################
@@ -1072,6 +1117,9 @@ break.points <- function(x, y, ss = 10){
 	rate[which(diff(d) < 0)] <- 'decelerate'
 
 	out <- data.frame(bps = bps, bps.y = bps.y, type = rate)
+	out <- out[out$bps > 0, ]
+	out <- out[out$type == 'accelerate', ]
+	out <- out[!is.na(out$type == '<NA>'), ]
 	return(out)
 	
 	}
@@ -1089,6 +1137,7 @@ plot.breaks <- function(x, y, add_plot = TRUE, decel.col = 1, ...){
 	#... = parameters passed to plot function
 	
 	bp <- break.points(x = x, y = y)
+	bp <- bp[bp$type == 'accelerate', ]		#Remove the deceleration points
 	pt.col <- rep('white', nrow(bp))
 		pt.col[bp$type == 'decelerate'] <- alpha(decel.col, 1)
 #	for(i in 1:nrow(bp)){
@@ -1296,7 +1345,8 @@ cat.data <- function(x, num.cats = 3, reverse = FALSE){
 	stand <- rank(x, na.last = 'keep')
 
 	#category boundaries
-	bounds <- (1 / num.cats * (c(1:(num.cats - 1)))) * max(stand, na.rm = TRUE)
+	probs <- (2:num.cats - 1)/num.cats		#quantile boundaries
+	bounds <- quantile(x, probs = probs, na.rm = TRUE)
 	
 	#category names
 	if(num.cats == 3 & length(unique(stand)) >= 3){
@@ -1311,11 +1361,11 @@ cat.data <- function(x, num.cats = 3, reverse = FALSE){
 	
 	#categorise data
 	cats <- rep(NA, length(x))
-	cats[stand >= bounds[length(bounds)]] <- name[1]
-	cats[stand < bounds[1]] <- name[length(name)]
+	cats[x >= bounds[length(bounds)]] <- name[1]
+	cats[x < bounds[1]] <- name[length(name)]
 	if(num.cats > 2){
 		for (i in length(bounds):2)
-			cats[stand < bounds[i] & stand >= bounds[i-1]] <- name[i]
+			cats[x < bounds[i] & x >= bounds[i-1]] <- name[i]
 		}
 	
 	return(as.factor(cats))
@@ -1529,27 +1579,27 @@ resil.dat <- function(turns, bayes, grouping = 'TaxonType', full_taxa = NA){
 
 
 #Function to calculate resilience
-resil.calc <- function(turns){
-	#Turns = output from call to 'turns', subsetted to contain just the taxa you want to group and calculate resilience for
-	
-	proportion <- function(x) sum(!is.na(x)) / length(x)
-
-	#Assign generalists a 'turning point' at 100 % AGB removal
-	gen_turns <- turns$turn.point
-	gen_turns[turns$pval > 0.05] <- 100
-	
-	#Calculate resilience
-	scale_imp <- proportion(x = turns$turn.point)
-	mean_turns <- mean(gen_turns)
-	scale_turn <- 1- mean_turns/100
-	scale_resil <- 1 - (scale_imp * scale_turn)
-	new_samp <- nrow(turns)
-	
-	outNew <- data.frame(susceptibility = scale_imp, sensitivity = scale_turn, 
-		resilience = scale_resil, num.taxa = new_samp)
-	
-	return(outNew)
-		}
+#resil.calc <- function(turns){
+#	#Turns = output from call to 'turns', subsetted to contain just the taxa you want to group and calculate resilience for
+#	
+#	proportion <- function(x) sum(!is.na(x)) / length(x)
+#
+#	#Assign generalists a 'turning point' at 100 % AGB removal
+#	gen_turns <- turns$turn.point
+#	gen_turns[turns$pval > 0.05] <- 100
+#	
+#	#Calculate resilience
+#	scale_imp <- proportion(x = turns$turn.point)
+#	mean_turns <- mean(gen_turns)
+#	scale_turn <- 1- mean_turns/100
+#	scale_resil <- (scale_imp + scale_turn) / 2
+#	new_samp <- nrow(turns)
+#	
+#	outNew <- data.frame(susceptibility = scale_imp, sensitivity = scale_turn, 
+#		resilience = scale_resil, num.taxa = new_samp)
+#	
+#	return(outNew)
+#		}
 
 ###################################################################################
 ###################################################################################
@@ -1617,7 +1667,7 @@ resil.func <- function(func_groups, func_points, turns){
 	align <- align[!is.na(align)]
 	
 	funcs_keep <- funcs[align, ]
-	funcs_keep$resilience <- 1 - (susc$prop_imp * sens$mean.turn)
+	funcs_keep$resilience <-  (susc$prop_imp + sens$mean.turn) / 2
 
 	out <- list(sens = sens, susc = susc, funcs = funcs_keep)
 	return(out)
@@ -1700,18 +1750,30 @@ estimate.thresholds <- function(turn_points, func_points){
 	ftA <- which(combined$ft$type == 'accelerate')
 	trA <- which(combined$tr$type == 'accelerate')
 	frA <- which(combined$fr$type == 'accelerate')
+	
+	
+	tt_pro <- combined$tt$bps[ttA[1]]
+	tr_pro <- combined$tr$bps[trA[1]]
+	ft_pro <- combined$ft$bps[ftA[1]]
+	fr_pro <- combined$fr$bps[frA[1]]
+	
+	tt_rea <- combined$tt$bps[ttA[length(ttA)]]
+	tr_rea <- combined$tr$bps[trA[length(trA)]]
+	ft_rea <- combined$ft$bps[ftA[length(ftA)]]
+	fr_rea <- combined$fr$bps[frA[length(frA)]]
+	
 
 	#Proactive threshold
-	pros <- c(combined$tt$bps[ttA[1]], combined$ft$bps[ttA[1]], combined$tr$bps[ttA[1]], combined$fr$bps[ttA[1]])
-	mean_pro <- mean(pros)
-	boot_pro <- bootstrap(pros)
+	pros <- c(tt_pro, tr_pro, ft_pro, fr_pro)
+	pros <- c(pros, mean(pros))
 	
 	#Reactive threshold
-	react <- c(combined$tt$bps[ttA[length(ttA)]], combined$ft$bps[ttA[length(ttA)]], combined$tr$bps[ttA[length(ttA)]], combined$fr$bps[ttA[length(ttA)]])
-	mean_react <- mean(react)
-	boot_react <- bootstrap(react)
+	react <- c(tt_rea, tr_rea, ft_rea, fr_rea)
+	react <- c(react, mean(react))
+
+	out <- data.frame(proactive = pros, reactive = react)
+	out$type <- c('taxa_turn', 'taxa_rate', 'func_turn', 'func_rate', 'mean')
 	
-	out<- list(proactive = c(mean_pro, boot_pro), reactive = c(mean_react, boot_react))
 	return(out)
 	}
 
@@ -1782,6 +1844,63 @@ sort.funcs <- function(func_groups){
 	funcs_sub <- funcs_sub[order(funcs_sub$category, funcs_sub$TaxType, funcs_sub$qualifier, funcs_sub$level), ]
 	
 	return(funcs_sub)
+	}
+
+###################################################################################
+###################################################################################
+
+
+#Bootstrap confidence intervals around ecological threshold estimates
+boot.thresholds <- function(turn_points, func_points, reps = 100){
+	#turn_points = output from call to 'fitted_mod' applied to taxa
+	#func_points = output from call to 'fitted_mod' applied to functional groups
+	#reps = number of bootstrap samples
+	
+	pro <- rea <- NULL
+	for(i in 1:reps){
+		print(paste('Running bootstrap', i, 'of', reps))
+		dummy_tp <- turn_points
+		tp_samp <- sample(1:nrow(turn_points), nrow(turn_points), replace = TRUE)
+		fp_samp <- sample(1:nrow(func_points), nrow(func_points), replace = TRUE)
+		dummy_tp$dataset <- turn_points[tp_samp, ]
+		dummy_fp <- func_points[fp_samp, ]
+		boot_est <- estimate.thresholds(turn_points = dummy_tp, func_points = dummy_fp)
+		pro[i] <- boot_est$proactive[5]
+		rea[i] <- boot_est$reactive[5]
+		}
+	proquant <- quantile(pro, probs = c(0.025, 0.975))
+	reaquant <- quantile(rea, probs = c(0.025, 0.975))
+	out <- data.frame(rbind(proquant, reaquant))
+	rownames(out) <- c('proactive', 'reactive')
+	return(out)
+	}
+
+###################################################################################
+###################################################################################
+
+
+#Function to determine which taxa are present in primary forest
+primary.species <- function(thresh_data = thresh.data, lidar_data = lidar.data, 
+	primary_cutoff = 95){
+	#thresh_data = Site x species matrix for each dataset, containing only taxa that are duplicated across >1 dataset
+	#lidar_data = Lidar data for all sites in full dataset
+	#primary_cutoff = percentage of AGB required to consider a site as primary forest
+	
+	maxAGB <- apply(lidar_data[, 3:7], 1, max, na.omit = TRUE)
+	primary <- data.frame(site = lidar_data$site, primary = as.numeric(maxAGB) >= primary_cutoff)
+	prim_taxa <- NULL
+	for(i in 1:length(thresh_data)){	#For each dataset
+		targs <- match(thresh_data[[i]]$comm.out$site, primary$site)
+		prim_sites <- thresh_data[[i]]$comm.out[which(primary$primary[targs] == TRUE), ]	#Rows that represent sites with primary forest levels of AGB
+		if(nrow(prim_sites) >= 1){
+			if(ncol(prim_sites) == 4){
+				prim_sites$dummy <- 0
+				}
+			prim_taxa <- c(prim_taxa, names(which(colSums(prim_sites[, 4:ncol(prim_sites)]) >= 1)))
+			}
+		}
+	prim_taxa <- unique(prim_taxa)
+	return(prim_taxa)
 	}
 
 ###################################################################################

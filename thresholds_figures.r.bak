@@ -17,6 +17,7 @@
 #Read in data
 	thresh_data <- readRDS('data/threshold_taxa_data.rds')
 	func.groups <- readRDS('data/functional_groups.rds')			#Functional groups
+		func.groups$BodyMass <- log10(func.groups$BodyMass)		#log-transform body mass
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
 		fitted_thresh <- fitted_thresh[!is.na(fitted_thresh$modtype), ]	#Remove taxa that weren't found for analyses
 	fitted_func <- readRDS('results/fitted_func.rds')
@@ -95,8 +96,8 @@ png('figures/fig1.png', width = 1600, height = 1600, res = 150)
 	{
 		turn_pointsC <- assign.taxon(dataset = turn_points, taxon_table = taxa)
 		thresholds <- estimate.thresholds(turn_pointsC, func_points)
-		proThresh <- round_any(thresholds$proactive[1], 5, f = round)
-		reThresh <- round_any(thresholds$reactive[1], 5, f = round)
+		proThresh <- thresholds$proactive[5]	#round_any(thresholds$proactive[1], 5, f = round)
+		reThresh <- thresholds$reactive[5]		#round_any(thresholds$reactive[1], 5, f = round)
 		
 		#Taxa
 		taxa_turn <- turn_pointsC$dataset$turn.point[!is.na(turn_pointsC$dataset$turn.point)]
@@ -118,12 +119,12 @@ png('figures/fig1.png', width = 1600, height = 1600, res = 150)
 		arrows(proThresh, 0.02, proThresh, 0, lwd = 4, angle = 25, length = 0.1)
 		arrows(reThresh, 0.02, reThresh, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
 	
-		legend('topright', legend = c('accel.', 'decel.', 'proactive', 'reactive'), 
-			pch = c(21, 21, NA, NA), pt.bg = c('white', alpha(1, 0.5), NA, NA),
-			cex = 1.8, pt.cex = 4, lty = c(0, 0, 1, 2), lwd = c(2,2,3,3), bty = 'n', 
+		legend('topright', legend = c('accel.', 'proactive', 'reactive'), 
+			pch = c(21, NA, NA), pt.bg = c('white', NA, NA),
+			cex = 1.8, pt.cex = 4, lty = c(0, 1, 2), lwd = c(2,3,3), bty = 'n', 
 			x.intersp = 0.1)
 
-		text(x = 0, y = 0.029, labels = c('(C) Turning points'), cex = 2, pos = 4)
+		text(x = 0, y = 0.029, labels = c('(C) Change points'), cex = 2, pos = 4)
 		mtext('Density', side = 2, line = 4, cex = 2)
 	}
 
@@ -149,7 +150,7 @@ png('figures/fig1.png', width = 1600, height = 1600, res = 150)
 		arrows(proThresh, 0.02, proThresh, 0, lwd = 4, angle = 25, length = 0.1)
 		arrows(reThresh, 0.02, reThresh, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
 	
-		text(x = 0, y = 0.029, labels = c('(D) Peak change points'), cex = 2, pos = 4)
+		text(x = 0, y = 0.029, labels = c('(D) Maximum rate points'), cex = 2, pos = 4)
 		mtext('Density', side = 2, line = 4, cex = 2)
 	}
 	
@@ -179,7 +180,7 @@ png('figures/fig2.png', width = 1600, height = 800, res = 150)
 		gen_turns <- turn_points2$dataset$turn.point
 		gen_turns[is.na(gen_turns)] <- 100
 		mean.turn <- 1 - by(gen_turns, turn_points2$dataset$TaxonType, FUN = mean, na.rm = TRUE) / 100	#Mean turning point
-		tax_res <- 1 - (prop_imp * mean.turn)
+		tax_res <-  (prop_imp + mean.turn) / 2
 		susc_boot <- boot.susc(turns_out = turn_points2$dataset)
 		
 		#Plot figure
@@ -192,7 +193,7 @@ png('figures/fig2.png', width = 1600, height = 800, res = 150)
 			arrows(susc_boot$susc[i,1], prop_imp[i], susc_boot$susc[i,3], prop_imp[i], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
 			}
 		#Re-plot points to put them on top
-		points(mean.turn, prop_imp, cex = 5*tax_res^2, pch = 19, , col = alpha(1, 0.6))	
+		points(mean.turn, prop_imp, cex = 5*tax_res, pch = 19, , col = alpha(1, 0.6))	
 		
 		#Add names
 		xadj = c(-0.03, 0.03, 0.03, 0.03, -0.03, 0.03, 0.02, -0.02, -0.03, 0.03)
@@ -203,20 +204,21 @@ png('figures/fig2.png', width = 1600, height = 800, res = 150)
 				text(x = mean.turn[i] + xadj[i], y = prop_imp[i] + yadj[i], adj = tadj[i], labels = names(mean.turn[i]), cex = 1.2)
 				}
 				
-		legend('bottomright', pch = 19, pt.cex = 5*c(0.45, 0.6, 0.75, 0.9)^2, legend = c('0.45', '0.60', '0.75', '0.90'),
+		legend('bottomright', pch = 19, pt.cex = 5*c(0.2, 0.35, 0.6), legend = c('0.20', '0.35', '0.50'),
 			cex = 2, lty = 0, bty = 'n', x.intersp = 0.8, col = alpha(1, 0.6))
 
 		mtext('Susceptibility', 2, line = 3, cex = 2)
-		text(x = 0, y = 0.98, labels = c('(A) Taxonomic resilience'), cex = 2, pos = 4)
+		text(x = 0, y = 0.98, labels = c('(A) Taxonomic vulnerability'), cex = 2, pos = 4)
 	}
 	
 	#Panel B: Functional resilience
 	{
 	pal <- paletteer_d("ggthemes::Miller_Stone")
 	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points2$dataset)
-	resil_func$funcs$col <- as.numeric(resil_func$funcs$category)
-	
-	
+	funcs_colMap <- data.frame(funcGroup = levels(resil_func$funcs$category), funcCol = as.numeric(as.factor(levels(resil_func$funcs$category))))
+	funcs_colMap$pal <- pal[funcs_colMap$funcCol]
+	resil_func$funcs$col <- funcs_colMap$funcCol[match(resil_func$funcs$category, funcs_colMap$funcGroup)]
+
 	plot(resil_func$sens$mean.turn, resil_func$susc$prop_imp, 
 		cex = resil_func$funcs$resilience^2 * 5, pch = 19, col = 'white',
 		xlim = c(0, 1), ylim = c(0, 1), 
@@ -230,13 +232,13 @@ png('figures/fig2.png', width = 1600, height = 800, res = 150)
 		arrows(xvals, resil_func$sens$z025[i], xvals, resil_func$sens$z975[i], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
 		}
 	points(resil_func$sens$mean.turn, resil_func$susc$prop_imp, 
-		cex = resil_func$funcs$resilience^2 * 5, pch = 19, col = alpha(pal[resil_func$funcs$col], 0.7)) 
+		cex = resil_func$funcs$resilience * 5, pch = 19, col = alpha(pal[resil_func$funcs$col], 0.7)) 
 	
-	legend('bottomright', pch = 19, legend = unique(resil_func$funcs$category),
-		col = alpha(pal[unique(resil_func$funcs$col)], 0.7),
+	legend('bottomright', pch = 19, legend = funcs_colMap$funcGroup,
+		col = alpha(funcs_colMap$pal, 0.7),
 		cex = 1.5, pt.cex = 2, lty = 0, bty = 'n', x.intersp = 0.8)
 
-	text(x = 0, y = 0.98, labels = c('(B) Functional resilience'), cex = 2, pos = 4)
+	text(x = 0, y = 0.98, labels = c('(B) Functional vulnerability'), cex = 2, pos = 4)
 	}
 	
 	#Axis label
@@ -261,6 +263,11 @@ png('figures/fig3.png', width = 1000, height = 1000, res = 150)
 	taxlower <- tolower(funcs$TaxType)
 	funcs$pch <- as.numeric(pchmatch$pchtypes[match(taxlower, pchmatch$types)])
 	
+	
+	
+	
+	funcs$col <- funcs_colMap$pal[match(funcs$category, funcs_colMap$funcGroup)]
+	
 	#PANEL A: CRITICAL THRESHOLDS AND TURNOVER
 	{
 		#plot figure
@@ -280,7 +287,6 @@ png('figures/fig3.png', width = 1000, height = 1000, res = 150)
 				}
 			text(x = -7, y = i, funcs$qualifier [i], cex = 0.6, adj = c(1, 0.5), col = funcs$col[i])
 			}
-		
 	}
 
 	#PANEL B: RESILIENCE
@@ -326,14 +332,14 @@ png('figures/fig3.png', width = 1000, height = 1000, res = 150)
 	text(x = 110, y = nrow(funcs)-0.5, labels = c('(A)'), cex = 1.2)
 	text(x = 243, y = nrow(funcs)-0.5, labels = c('(B)'), cex = 1.2)
 	mtext('Biomass reduction (%)', 1, line = 2.5, at = 50, cex = 1.3)
-	mtext('Resilience', 1, line = 2.5, at = 190, cex = 1.3)
+	mtext('Vulnerability', 1, line = 2.5, at = 190, cex = 1.3)
 	}
 	dev.off()
 
 
 
 ##FIGURE S1 - PHYLOGENY
-png(paste('figures/figS1.png', sep = ""), width = 800, height = 800, res = 150)
+png(paste('figures/figS1.png', sep = ""), width = 1000, height = 1500, res = 150)
 {
 	phylo <- arrange.phylo(timetree = tr, raw_data = thresh_data, taxa_safe = taxa,
 		tt_map = map, coefs = fitted_thresh, palette_col = paletteer_d("ggsci::default_igv"))
@@ -341,7 +347,7 @@ png(paste('figures/figS1.png', sep = ""), width = 800, height = 800, res = 150)
 	par(oma = c(1,0,0,0), mar=c(3, 0, 0, 0))
 	plot.phylo(phylo$tr, show.tip.label = FALSE, edge.color = 'white',
 		edge.width = 1, font = 0.8, x.lim = c(0,2300))
-#	plot.phylo(phylo$tr, show.tip.label = FALSE, edge.color = 'grey',
+#	plot.phylo(phylo$tr, show.tip.label = TRUE, edge.color = 'grey',
 #		edge.width = 1, font = 0.8, x.lim = c(0,2300))
 	phydataplot(phylo$numbers2$numTax * 200, phylo$tr, offset = 30, col = alpha(phylo$pal[phylo$col_index], 0.3), legend = 'none')	#Number of taxa
 	phydataplot(phylo$numbers3$propTax * 200, phylo$tr, offset = 30, col = alpha(phylo$pal[phylo$col_index], 0.3), legend = 'none')	#Proportion of taxa modelled
@@ -349,9 +355,9 @@ png(paste('figures/figS1.png', sep = ""), width = 800, height = 800, res = 150)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(0.5, 0.5, 5.5, 5.5), col = alpha(phylo$pal[1], 0.1), border = NA)
 		text(x = 2280, y = 2.5, labels = 'Actinopterygii', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(5.5, 5.5, 6.5, 6.5), col = alpha(phylo$pal[2], 0.1), border = NA)
-		text(x = 2280, y = 5, labels = 'Amphibia', adj = 1, cex = 0.8)
+		text(x = 2280, y = 5.5, labels = 'Amphibia', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(6.5, 6.5, 7.5, 7.5), col = alpha(phylo$pal[3], 0.1), border = NA)
-		text(x = 2280, y = 8, labels = 'Reptilia', adj = 1, cex = 0.8)
+		text(x = 2280, y = 7.5, labels = 'Reptilia', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(7.5, 7.5, 21.5, 21.5), col = alpha(phylo$pal[4], 0.1), border = NA)
 		text(x = 2280, y = 14.5, labels = 'Aves', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(21.5, 21.5, 30.5, 30.5), col = alpha(phylo$pal[5], 0.1), border = NA)
@@ -359,7 +365,7 @@ png(paste('figures/figS1.png', sep = ""), width = 800, height = 800, res = 150)
 #	polygon(x = c(1520,2300, 2300, 1520), y = c(30.5, 30.5, 31.5, 31.5), col = alpha(phylo$pal[6], 0.1), border = NA)
 #		text(x = 2280, y = 30.5, labels = 'Diplopoda', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(30.5, 30.5, 32.5, 32.5), col = alpha(phylo$pal[6], 0.1), border = NA)
-		text(x = 2280, y = 32.5, labels = 'Malacostraca', adj = 1, cex = 0.8)
+		text(x = 2280, y = 31.5, labels = 'Malacostraca', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(32.5, 32.5, 51.5, 51.5), col = alpha(phylo$pal[7], 0.1), border = NA)
 		text(x = 2280, y = 42, labels = 'Insecta', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(51.5, 51.5, 55.5, 55.5), col = alpha(phylo$pal[8], 0.1), border = NA)
@@ -371,7 +377,7 @@ png(paste('figures/figS1.png', sep = ""), width = 800, height = 800, res = 150)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(59.5, 59.5, 64.5, 64.5), col = alpha(phylo$pal[12], 0.1), border = NA)
 		text(x = 2280, y = 62, labels = 'Polypodiopsida', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(64.5, 64.5, 68.5, 68.5), col = alpha(phylo$pal[13], 0.1), border = NA)
-		text(x = 2280, y = 68.5, labels = 'Magnoliopsida', adj = 1, cex = 0.8)
+		text(x = 2280, y = 66.5, labels = 'Magnoliidae', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(68.5, 68.5, 77.5, 77.5), col = alpha(phylo$pal[14], 0.1), border = NA)
 		text(x = 2280, y = 73, labels = 'Liliopsida', adj = 1, cex = 0.8)
 	polygon(x = c(1520,2300, 2300, 1520), y = c(77.5, 77.5, 102.5, 102.5), col = alpha(phylo$pal[13], 0.1), border = NA)
@@ -386,7 +392,7 @@ png(paste('figures/figS1.png', sep = ""), width = 800, height = 800, res = 150)
 	legend('bottomright', legend = c('a','somethingreallyreallylongandboring'), text.col = 'white', bg = 'white', box.col = 'white')
 
 	par(oma = c(1,0,0,0), mar=c(3, 0, 0, 0), new = TRUE)
-	plot.phylo(tr, show.tip.label = FALSE, edge.color = 'grey',
+	plot.phylo(phylo$tr, show.tip.label = FALSE, edge.color = 'grey',
 		edge.width = 2, font = 0.8, x.lim = c(0,2300))
 
 	axis(1, at = seq(1530, 2130, 200), labels = c(parse(text = '10^0'), parse(text = '10^1'), parse(text = '10^2'), parse(text = '10^3')))
@@ -526,16 +532,16 @@ png('figures/figS2.png', width = 1600, height = 1600, res = 150)
 		lines(fullrange, y, lwd = 5, col = alpha(pal[3], 1))
 		#Plot 1st derivatives
 		d1 <- (0.9 - 0.1) * (d1.vals - min(d1.vals)) / (max(d1.vals) - min(d1.vals)) + 0.1		#Rescale to fit in plot window
-		lines(d1, col = alpha(pal[3], 1))
+		lines(d1, lwd = 2, col = 'grey')
 		#Plot 2nd derivatives
 		d2 <- (0.8 - 0.2) * (d2.vals - min(d2.vals)) / (max(d2.vals) - min(d2.vals)) + 0.2		#Rescale to fit in plot window
-		lines(d2, lty = 3, col = alpha(pal[3], 1))
+		lines(d2, lwd = 2, col = 'black')
 		#Add turning points
 		points(turns$tps, tps.d2, pch = 17, lwd = 2, cex = 5, col = alpha(pal[3], 0.8))
 		points(turns$maxrate, tps.d1, pch = 25, lwd = 2, cex = 5, col = alpha(pal[3], 0.8))
 			
-		text(x = turns$tps+5, y = tps.d2+0.05, labels = c('turning point'), cex = 1.5, adj = 0)
-		text(x = turns$maxrate+5, y = tps.d1-0.05, labels = c('peak change point'), cex = 1.5, adj = 0)
+		text(x = turns$tps+5, y = tps.d2+0.05, labels = c('change point'), cex = 1.5, adj = 0)
+		text(x = turns$maxrate+5, y = tps.d1-0.05, labels = c('maximum rate point'), cex = 1.5, adj = 0)
 		text(x = 97, y = 0.99, labels = c('(C)'), cex = 2)
 		}
 		

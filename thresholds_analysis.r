@@ -13,12 +13,15 @@
 	thresh.data <- readRDS("data/threshold_taxa_data.rds")	#Site x species matrix for each dataset, containing only taxa that are duplicated across >1 dataset
 	lidar.data <- readRDS("data/lidar_percent.rds")			#Lidar data for all sites in full dataset
 	func.groups <- readRDS('data/functional_groups.rds')	#Functional groups
+		func.groups$BodyMass <- log10(func.groups$BodyMass)		#log-transform body mass
 #	bayes_results <- readRDS("data/bayes.rds")[[1]]			#Results from Bayesian slopes analysis (Replicability analysis)
 	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
 	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
 	
 #Fit models and calculate summaries
+#	flat_data <- full.data(full_data = thresh.data, lidar = lidar.data)		#NOT USED!!
+#		saveRDS(flat_data, 'data/flat_data.rds')
 #	fitted_thresh <- fit.models(full_data = thresh.data, lidar = lidar.data, min.observs = 5,
 #		predictor = c('agb250', 'agb500', 'agb1000', 'agb2000', 'agb4000'))
 #		saveRDS(fitted_thresh, 'results/fitted_thresh.rds')
@@ -29,12 +32,18 @@
 #		saveRDS(turn_points, 'results/turn_points.rds')
 #	func_points <- turns(fitted_mod = fitted_func)
 #		saveRDS(func_points, 'results/func_points.rds')
+#	thresh_CI <- boot.thresholds(turn_points, func_points, reps = 100)
+#		saveRDS(thresh_CI, 'results/threshold_CI.rds')
+
+
 
 #Read in pre-calculated versions
+	flat_data <- readRDS('data/flat_data.rds')
 	fitted_thresh <- readRDS('results/fitted_thresh.rds')
 	fitted_func <- readRDS('results/fitted_func.rds')
 	turn_points <- readRDS('results/turn_points.rds')
 	func_points <- readRDS('results/func_points.rds')
+	thresh_CI <- readRDS('results/threshold_CI.rds')
 
 #Calculate summaries and derived data
 	taxa_cats <- assign.taxon(dataset = fitted_thresh[!is.na(fitted_thresh$modtype), ], taxon_table = taxa)
@@ -65,8 +74,7 @@
 		sum(rowSums(!is.na(taxaXdata)) > 1)				#Number of taxa in >1 survey
 		sum(rowSums(!is.na(taxaXdata)) > 1) / nrow(taxaXdata)	#As a proportion
 		visits <- repeat.visits(thresh.data)
-		sum(visits$mean.visits > 1)					#Number surveys with >1 visit
-		sum(visits$mean.visits > 1)/nrow(visits)	#as proportion
+		sum(visits$mean.visits > 1)/nrow(visits)	#Number surveys with >1 visit, as proportion
 	#Number of modelled taxa
 		sum(!is.na(fitted_thresh$modtype))
 	#Higher order taxa
@@ -79,9 +87,9 @@
 		length(which(taxa_cats$matched.taxa$family == 'Formicidae'))	#Number of ants
 		length(which(taxa_cats$dataset$TaxonType == 'Arachnid'))		#Number of spiders
 	#Functional groups
-		log10(maxsize$BodyMass[1]) - log10(minsize$BodyMass[1])		#Orders of magnitude in body size
 		minsize <- print(func.groups[which(func.groups$BodyMass == min(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
 		maxsize <- print(func.groups[which(func.groups$BodyMass == max(func.groups$BodyMass, na.rm = TRUE)), c('taxon_name', 'BodyMass')])
+		maxsize$BodyMass[1] - minsize$BodyMass[1]		#Orders of magnitude in body size
 		func.summary(func_groups = func.groups)
 
 	#Number of taxa instantly impacted
@@ -96,31 +104,28 @@
 	#Number negative vs positive functional group responses
 		sum(func_points$slope < 0 & func_points$pval < 0.05)	#number responding negatively
 		sum(func_points$slope > 0 & func_points$pval < 0.05)	#number responding positively
-	#Proportion of positive responders
-		sum(turn_points$dataset$slope > 0 & turn_points$dataset$pval < 0.05) / nrow(turn_points$dataset)	#taxa
-		sum(func_points$slope > 0 & func_points$pval < 0.05) / nrow(func_points)	#functional groups
+	#Impact on primary forest species
+		primes <- primary.species(thresh_data = thresh.data, lidar_data = lidar.data, primary_cutoff = 95)	
+		length(primes)		#Number of primary forest taxa
+		prime.turns <- turn_points$dataset[match(primes, turn_points$dataset$taxon), ]	#Turning points for primary forest taxa only
+		sum(prime.turns$slope > 0 & prime.turns$pval < 0.05, na.rm = TRUE) / nrow(prime.turns)	#proportion of primary forest taxa responding positively
+		sum(prime.turns$slope < 0 & prime.turns$pval < 0.05, na.rm = TRUE) / nrow(prime.turns)	#proportion of primary forest taxa responding negatively
 	
-
 #Figure 1 caption
 	#Number of taxa
 		nrow(turn_points$dataset)
 	#Number of functional groups
 		nrow(fitted_func)	
 
-
 #Ecological thresholds
-	estimate.thresholds(turn_points, func_points)
-	#Thresholds in taxa peak rate
-		taxa_rate <- turn_points$dataset$maxrate[!is.na(turn_points$dataset$maxrate)]
-		break.points(density(taxa_rate)$x, density(taxa_rate)$y)
-	#Thresholds in functional group peak rate
-		func_rate <- func_points$maxrate[!is.na(func_points$maxrate)]
-		break.points(density(func_rate)$x, density(func_rate)$y)
-
+	thresh <- estimate.thresholds(turn_points, func_points)
+	thresh
+	#Bootstrapped errors around threshold estimates
+		thresh_CI
 
 #Taxonomic categories
 	#Number of orders
-		length(unique(taxa_cats$matched.taxa$order))
+		sum(!is.na(phylo$numbers3$propTax))
 	#Number of orders with impacted taxa
 		func <- function(x) sum(!is.na(x))/length(x)
 		reps <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$Order), FUN = func)
@@ -135,7 +140,7 @@
 		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) 	#Mean turning point
 
 #Functional resilience
-	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points2$dataset)
+	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points$dataset)
 	resil_func$funcs[order(resil_func$funcs$resilience), c(17, 20,25)]	#Functional groups ordered from least to most resilient
 	sort(by(resil_func$funcs$resilience, resil_func$funcs$category, mean))	#Mean resilience per functional category
 	anova(lm(resilience ~ category, data = resil_func$funcs))
