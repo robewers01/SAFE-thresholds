@@ -125,7 +125,7 @@ png('figures/fig1.png', width = 1600, height = 1600, res = 150)
 			x.intersp = 0.1)
 
 		text(x = 0, y = 0.029, labels = c('(C) Change points'), cex = 2, pos = 4)
-		mtext('Density', side = 2, line = 4, cex = 2)
+		mtext('Probability density', side = 2, line = 4, cex = 2)
 	}
 
 	#Panel D: rates of change density
@@ -151,7 +151,7 @@ png('figures/fig1.png', width = 1600, height = 1600, res = 150)
 		arrows(reThresh, 0.02, reThresh, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
 	
 		text(x = 0, y = 0.029, labels = c('(D) Maximum rate points'), cex = 2, pos = 4)
-		mtext('Density', side = 2, line = 4, cex = 2)
+		mtext('Probability density', side = 2, line = 4, cex = 2)
 	}
 	
 	mtext('Biomass reduction (%)', 1, line = 0, outer = TRUE, cex = 2)
@@ -161,7 +161,7 @@ png('figures/fig1.png', width = 1600, height = 1600, res = 150)
 		
 
 
-##FIGURE 2 - SENSITIVITY, SUSCEPTIBILITY AND RESILIENCE
+##FIGURE 2 - SENSITIVITY, SUSCEPTIBILITY AND VULNERABILITY
 png('figures/fig2.png', width = 1600, height = 800, res = 150)
 {
 
@@ -180,12 +180,12 @@ png('figures/fig2.png', width = 1600, height = 800, res = 150)
 		gen_turns <- turn_points2$dataset$turn.point
 		gen_turns[is.na(gen_turns)] <- 100
 		mean.turn <- 1 - by(gen_turns, turn_points2$dataset$TaxonType, FUN = mean, na.rm = TRUE) / 100	#Mean turning point
-		tax_res <-  (prop_imp + mean.turn) / 2
+		tax_res <-  (prop_imp * mean.turn) 
 		susc_boot <- boot.susc(turns_out = turn_points2$dataset)
 		
 		#Plot figure
-		plot(mean.turn, prop_imp, cex = tax_res^2 * 5, pch = 19, cex.axis = 2, col = 'white',
-			 xlim = c(0, 1), ylim = c(0, 1), xlab = '', ylab = '')
+		plot(mean.turn, prop_imp, cex = tax_res^2 * 15, pch = 19, cex.axis = 2, col = 'white',
+			 xlim = c(0, 1), ylim = c(0, 1.1), xlab = '', ylab = '')
 		
 		#Add error estimates
 		for(i in 1:nrow(susc_boot$sens)){
@@ -193,22 +193,27 @@ png('figures/fig2.png', width = 1600, height = 800, res = 150)
 			arrows(susc_boot$susc[i,1], prop_imp[i], susc_boot$susc[i,3], prop_imp[i], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
 			}
 		#Re-plot points to put them on top
-		points(mean.turn, prop_imp, cex = 5*tax_res, pch = 19, , col = alpha(1, 0.6))	
+		points(mean.turn, prop_imp, cex = 15*tax_res, pch = 19, , col = alpha(1, 0.6))	
 		
+	
 		#Add names
 		xadj = c(-0.03, 0.03, 0.03, 0.03, -0.03, 0.03, 0.02, -0.02, -0.03, 0.03)
 		yadj = c(0.03, 0.03, -0.03, 0.03, -0.03, 0.03, -0.02, -0.02, 0.03, 0.03)
 		tadj = c(1, 0, 0, 0, 1, 0, 0, 1, 1, 0)
 		
+		#Clarify names
+		names(mean.turn)[names(mean.turn) == 'Insect'] <- 'Insect (excl. ants)'
+		names(mean.turn)[names(mean.turn) == 'Invertebrate'] <- 'Other invertebrates'
+		
 		for(i in 1:length(prop_imp)){
 				text(x = mean.turn[i] + xadj[i], y = prop_imp[i] + yadj[i], adj = tadj[i], labels = names(mean.turn[i]), cex = 1.2)
 				}
 				
-		legend('bottomright', pch = 19, pt.cex = 5*c(0.2, 0.35, 0.6), legend = c('0.20', '0.35', '0.50'),
-			cex = 2, lty = 0, bty = 'n', x.intersp = 0.8, col = alpha(1, 0.6))
+		legend('bottomright', pch = 19, pt.cex = 15*c(0.1, 0.2, 0.3), legend = c('0.10', '0.20', '0.30'),
+			cex = 1.5, lty = 0, bty = 'n', x.intersp = 0.8, col = alpha(1, 0.6))
 
-		mtext('Susceptibility', 2, line = 3, cex = 2)
-		text(x = 0, y = 0.98, labels = c('(A) Taxonomic vulnerability'), cex = 2, pos = 4)
+		mtext('Probability of impact', 2, line = 3, cex = 2)
+		text(x = -0.05, y = 1.08, labels = c('(A) Taxonomic vulnerability'), cex = 2, pos = 4)
 	}
 	
 	#Panel B: Functional resilience
@@ -220,8 +225,8 @@ png('figures/fig2.png', width = 1600, height = 800, res = 150)
 	resil_func$funcs$col <- funcs_colMap$funcCol[match(resil_func$funcs$category, funcs_colMap$funcGroup)]
 
 	plot(resil_func$sens$mean.turn, resil_func$susc$prop_imp, 
-		cex = resil_func$funcs$resilience^2 * 5, pch = 19, col = 'white',
-		xlim = c(0, 1), ylim = c(0, 1), 
+		cex = resil_func$funcs$resilience^2 * 15, pch = 19, col = 'white',
+		xlim = c(0, 1), ylim = c(0, 1.1), 
 		xlab = '', ylab = '', yaxt = 'n', cex.lab = 2.5, cex.axis = 2)
 	axis(side = 2, labels = FALSE)
 
@@ -232,17 +237,22 @@ png('figures/fig2.png', width = 1600, height = 800, res = 150)
 		arrows(xvals, resil_func$sens$z025[i], xvals, resil_func$sens$z975[i], length = 0.05, lwd = 2, angle = 90, code = 3, col = 'grey')
 		}
 	points(resil_func$sens$mean.turn, resil_func$susc$prop_imp, 
-		cex = resil_func$funcs$resilience * 5, pch = 19, col = alpha(pal[resil_func$funcs$col], 0.7)) 
+		cex = resil_func$funcs$resilience * 15, pch = 19, col = alpha(pal[resil_func$funcs$col], 0.7)) 
 	
-	legend('bottomright', pch = 19, legend = funcs_colMap$funcGroup,
-		col = alpha(funcs_colMap$pal, 0.7),
-		cex = 1.5, pt.cex = 2, lty = 0, bty = 'n', x.intersp = 0.8)
+	
+	colMap <- funcs_colMap[match(unique(resil_func$funcs$category), funcs_colMap$funcGroup), ]
+	colMap$funcGroup[colMap$funcGroup == 'Plant'] <- 'Plant traits'
+	
+	
+	legend('bottomright', pch = 19, legend = colMap$funcGroup,
+		col = alpha(colMap$pal, 0.7),
+		cex = 1.2, pt.cex = 2, lty = 0, bty = 'n', x.intersp = 0.8)
 
-	text(x = 0, y = 0.98, labels = c('(B) Functional vulnerability'), cex = 2, pos = 4)
+	text(x = -0.05, y = 1.08, labels = c('(B) Functional vulnerability'), cex = 2, pos = 4)
 	}
 	
 	#Axis label
-	mtext('Sensitivity', 1, line = 0.5, outer = TRUE, cex = 2)
+	mtext('Severity of impact', 1, line = 0.5, outer = TRUE, cex = 2)
 
 	dev.off()
 	}
@@ -263,15 +273,12 @@ png('figures/fig3.png', width = 1000, height = 1000, res = 150)
 	taxlower <- tolower(funcs$TaxType)
 	funcs$pch <- as.numeric(pchmatch$pchtypes[match(taxlower, pchmatch$types)])
 	
-	
-	
-	
 	funcs$col <- funcs_colMap$pal[match(funcs$category, funcs_colMap$funcGroup)]
 	
 	#PANEL A: CRITICAL THRESHOLDS AND TURNOVER
 	{
 		#plot figure
-		plot(0,0, xlim = c(-55,242), ylim = c(1, nrow(funcs) + 10), col = 'white', 
+		plot(0,0, xlim = c(-74,242), ylim = c(1, nrow(funcs) + 7), col = 'white', 
 			xlab = '', ylab = '',  yaxt = 'n', xaxt = 'n', cex.lab = 2.5, cex.axis = 2)
 		axis(1, at = c(0, 50, 100), cex.axis = 1.5)
 		axis(1, at = c(140, 190, 240), labels = c('0.0', '0.5', '1.0'), cex.axis = 1.5)
@@ -286,7 +293,17 @@ png('figures/fig3.png', width = 1000, height = 1000, res = 150)
 					angle = 20, length =0.07)
 				}
 			text(x = -7, y = i, funcs$qualifier [i], cex = 0.6, adj = c(1, 0.5), col = funcs$col[i])
+	#		text(x = -50, y = i, funcs$category [i], cex = 0.6, adj = c(1, 0.5), col = funcs$col[i])
 			}
+		#Add categories
+			text(x = -68, y = 49, substitute(paste(bold('Body\nmass'))), cex = 0.7, adj = c(0.5, 0.5), col = funcs$col[53], srt = 0)
+			text(x = -68, y = 43, substitute(paste(bold('Trophic'))), cex = 0.7, adj = c(0.5, 0.5), col = funcs$col[43], srt = 0)
+			text(x = -68, y = 37, substitute(paste(bold('Diet'))), cex = 0.7, adj = c(0.5, 0.5), col = funcs$col[37], srt = 0)
+			text(x = -64, y = 31.5, substitute(paste(bold('Movement'))), cex = 0.7, adj = c(0.5, 0.5), col = funcs$col[32], srt = 0)
+			text(x = -68, y = 28, substitute(paste(bold('Sociality'))), cex = 0.7, adj = c(0.5, 0.5), col = funcs$col[28], srt = 0)
+			text(x = -62, y = 24.5, substitute(paste(bold('Development'))), cex = 0.7, adj = c(0.5, 0.5), col = funcs$col[25], srt = 0)
+			text(x = -68, y = 16.5, substitute(paste(bold('Plant\ntraits'))), cex = 0.7, adj = c(0.5, 0.5), col = funcs$col[19], srt = 0)
+			text(x = -68, y = 7, substitute(paste(bold('Habitat\nstrata'))), cex = 0.7, adj = c(0.5, 0.5), col = funcs$col[7], srt = 00)
 	}
 
 	#PANEL B: RESILIENCE
@@ -308,25 +325,23 @@ png('figures/fig3.png', width = 1000, height = 1000, res = 150)
 			xmax <- xmin + new$resilience[i]*100
 			polygon(x = c(xmin, xmin, xmax, xmax), y = c(ymin, ymax, ymax, ymin), 
 				col = alpha(new$col[i], 0.3))
-			points(x = xmin + new$sens[i]*100, i, pch = 24, cex = 1, bg = 'grey')
-			points(x = xmin + new$susc[i]*100, i, pch = 25, cex = 1, bg = 'grey')
+			points(x = xmin + new$sens[i]*100, i, pch = 24, cex = 0.7, bg = new$col[i])
+			points(x = xmin + new$susc[i]*100, i, pch = 25, cex = 0.7, bg = new$col[i])
 			}
 	}
 	
 	#Add legend and labels
 	abline(nrow(funcs) + 1, 0, lwd = 1)
 	polygon(x = c(120, 120, 350, 350), y = c(-10, nrow(funcs)+1, nrow(funcs)+1, -10))
-	#Add categories
-	cats <- unique(funcs$category)
-		cats <- cats[!is.na(cats)]
-		cats <- droplevels(cats, exclude = 'Physiology')
 
-	legend('top', legend = c(pchmatch$types, NA, NA, 'increasing', 'decreasing', 'sensitivity', 'susceptibility', NA, rev(levels(cats))), 
-		pch = c(as.numeric(pchmatch$pchtypes), NA, NA, NA, NA, 24, 25, NA, rep(15, length(cats))),
-		lty = c(rep(0, nrow(pchmatch)), NA, NA, 1, 2, NA, rep(NA, length(cats))),
-		lwd = c(rep(1, nrow(pchmatch)), NA, NA, 2,2, NA, rep(NA, length(cats))),
-		col = c(rep('black', length(pchmatch$types) + 7), rev(unique(funcs$col))),
-		pt.bg = c(rep(NA, length(pchmatch$types) + 4), rep('grey',2), rep(NA, 10)),
+	pchmatch$types[pchmatch$types == 'invertebrate'] <- 'other invert.'
+
+	legend('top', legend = c(pchmatch$types, NA, 'increasing', 'decreasing', NA, 'sensitivity', 'susceptibility'), 
+		pch = c(as.numeric(pchmatch$pchtypes), NA, NA, NA, NA, 24, 25),
+		lty = c(rep(0, nrow(pchmatch)), NA, 1, 2),
+		lwd = c(rep(1, nrow(pchmatch)), NA, 2,2),
+		col = c(rep('black', length(pchmatch$types) + 6)),
+		pt.bg = c(rep(NA, length(pchmatch$types) + 4), rep('grey',2)),
 		bty = 'n', pt.cex = 1.2, ncol = 5, x.intersp = 0.6, cex = 0.8)
 	
 	text(x = 110, y = nrow(funcs)-0.5, labels = c('(A)'), cex = 1.2)
@@ -444,8 +459,7 @@ png('figures/figS2.png', width = 1600, height = 1600, res = 150)
 			
 		text(x = 97, y = 0.99, labels = c('(A)'), cex = 2)
 		}
-			
-			
+				
 	#Panel B - taxa among datasets
 	{
 		#Open empty plot window
@@ -559,32 +573,47 @@ png('figures/figS2.png', width = 1600, height = 1600, res = 150)
 		cf1 <- cf
 		cf2 <- as.list(params[2,])
 		cf3 <- as.list(params[3,])
-			names(cf1) <- names(cf2) <- names(cf3) <- c("a","b")
+		cf4 <- as.list(c(-3, (0-b)/2.5))
+			names(cf1) <- names(cf2) <- names(cf3) <- names(cf4) <- c("a","b")
+		
 		#Predicted values for derivatives
+		y2 <- exp(cf4$a + cf4$b*fullrange)/(1 + exp(cf4$a + cf4$b*fullrange))
+
 		mod_exprA <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
 		x_p <- D(mod_exprA, 'predx')
 		x_pp <- D(x_p, 'predx')
 		obs2 <- with(cf2, eval(mod_exprA))
 		obs3 <- with(cf3, eval(mod_exprA))
+		obs4 <- with(cf4, eval(mod_exprA))
 		obs2.d2 <- with(cf2, eval(x_pp))
 		obs3.d2 <- with(cf3, eval(x_pp))
+		obs4.d2 <- with(cf4, eval(x_pp))
 		
 		#Add lines to plot
 		lines(fullrange, y, lwd = 5, col = alpha(pal[3], 1))
 		lines(fullrange, obs2, lwd = 5, col = alpha(pal[3], 1))
 		lines(fullrange, obs3, lwd = 5, col = alpha(pal[3], 1))
+		lines(fullrange, y2, lwd = 5, col = alpha(pal[3], 1))
+		
 	
 		#Turning points
+		fits4 <- data.frame (agb = fullrange, obs = y2, d1 = obs4, d2 = obs4.d2)
+		turns4 <- root.finder(fitted_vals = list(fits = fits4))
+
 		mod_expr2 <- expression((exp(a + b*predx)/(1 + exp(a + b*predx))))
 		predx <- 0
 		tps2 <- with(cf2, eval(mod_expr2))
 		predx <- 100
 		tps3 <- with(cf3, eval(mod_expr2))
+		predx <- turns4$tps
+		tps4 <- with(cf4, eval(mod_expr2))
+
 
 		#Add turning points
 		points(turns$tps, tps.d2, pch = 17, lwd = 2, cex = 5, col = alpha(pal[3], 0.8))
 		points(0, tps2, pch = 24, lwd = 2, cex = 5, col = alpha(pal[3], 0.8))
 		points(100, tps3, pch = 24, lwd = 2, cex = 5, col = alpha(pal[3], 0.8))
+		points(turns4$tps, tps4, pch = 17, lwd = 2, cex = 5, col = alpha(pal[3], 0.8))
 
 		#Add text to indicate special cases
 		text(x = 6, y = tps2+0.05, labels = c('1'), cex = 1.5)	#Outside 0:100 range so gets set to zero with rangeweight applied

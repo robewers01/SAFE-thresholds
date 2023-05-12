@@ -1667,7 +1667,7 @@ resil.func <- function(func_groups, func_points, turns){
 	align <- align[!is.na(align)]
 	
 	funcs_keep <- funcs[align, ]
-	funcs_keep$resilience <-  (susc$prop_imp + sens$mean.turn) / 2
+	funcs_keep$resilience <-  (susc$prop_imp * sens$mean.turn) 
 
 	out <- list(sens = sens, susc = susc, funcs = funcs_keep)
 	return(out)

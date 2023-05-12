@@ -1117,6 +1117,7 @@ break.points <- function(x, y, ss = 10){
 	rate[which(diff(d) < 0)] <- 'decelerate'
 
 	out <- data.frame(bps = bps, bps.y = bps.y, type = rate)
+	out <- out[out$bps > 0, ]
 	out <- out[out$type == 'accelerate', ]
 	out <- out[!is.na(out$type == '<NA>'), ]
 	return(out)

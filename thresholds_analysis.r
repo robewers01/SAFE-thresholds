@@ -6,6 +6,7 @@
 
 	require(ape)
 	require(betareg)
+	require(lmtest)
 	require(safedata)
 	set_safe_dir("C:/Users/rewers/OneDrive - Imperial College London/work/SAFE project - private/safedata",update = FALSE)
 
@@ -61,7 +62,9 @@
 	#Number of functional groups
 		nrow(fitted_func)
 	#Conservation thresholds
-		estimate.thresholds(turn_points, func_points)
+		thresh <- estimate.thresholds(turn_points, func_points)
+		mean(thresh$proactive)
+		mean(thresh$reactive)
 	
 #Summary data
 	#Number of surveys
@@ -70,13 +73,14 @@
 		nrow(fitted_thresh)		#all taxa
 	#Number of functional groups
 		nrow(fitted_func)	
+	#Number modelled
+		sum(!is.na(fitted_thresh$modtype))	#Taxa
+		nrow(fitted_func)					#Functional groups
 	#Survey information
 		sum(rowSums(!is.na(taxaXdata)) > 1)				#Number of taxa in >1 survey
 		sum(rowSums(!is.na(taxaXdata)) > 1) / nrow(taxaXdata)	#As a proportion
 		visits <- repeat.visits(thresh.data)
 		sum(visits$mean.visits > 1)/nrow(visits)	#Number surveys with >1 visit, as proportion
-	#Number of modelled taxa
-		sum(!is.na(fitted_thresh$modtype))
 	#Higher order taxa
 		sum(!is.na(phylo$numbers3$propTax))		#Number of orders (based on TimeTree.org)
 		length(unique(taxa_cats$matched.taxa$genus))		#Number of genera
@@ -98,19 +102,20 @@
 	#Number of functional groups instantly impacted
 		sum(func_points$turn.point == 0, na.rm = TRUE)
 		sum(func_points$turn.point == 0, na.rm = TRUE) / nrow(func_points)
-	#Number negative vs positive taxon responses
-		sum(turn_points$dataset$slope < 0 & turn_points$dataset$pval < 0.05)	#number responding negatively
-		sum(turn_points$dataset$slope > 0 & turn_points$dataset$pval < 0.05)	#number responding positively
-	#Number negative vs positive functional group responses
-		sum(func_points$slope < 0 & func_points$pval < 0.05)	#number responding negatively
-		sum(func_points$slope > 0 & func_points$pval < 0.05)	#number responding positively
+	#Number negative vs positive responses
+		sum(turn_points$dataset$slope < 0 & turn_points$dataset$pval < 0.05)	#taxa - number responding negatively
+		sum(func_points$slope < 0 & func_points$pval < 0.05)	# funcs - number responding negatively
+		sum(turn_points$dataset$slope > 0 & turn_points$dataset$pval < 0.05)	#taxa - number responding positively
+		sum(func_points$slope > 0 & func_points$pval < 0.05)	#funcs - number responding positively
 	#Impact on primary forest species
 		primes <- primary.species(thresh_data = thresh.data, lidar_data = lidar.data, primary_cutoff = 95)	
 		length(primes)		#Number of primary forest taxa
 		prime.turns <- turn_points$dataset[match(primes, turn_points$dataset$taxon), ]	#Turning points for primary forest taxa only
 		sum(prime.turns$slope > 0 & prime.turns$pval < 0.05, na.rm = TRUE) / nrow(prime.turns)	#proportion of primary forest taxa responding positively
+		sum(prime.turns$slope > 0 & prime.turns$pval < 0.05, na.rm = TRUE)
 		sum(prime.turns$slope < 0 & prime.turns$pval < 0.05, na.rm = TRUE) / nrow(prime.turns)	#proportion of primary forest taxa responding negatively
-	
+		sum(prime.turns$slope < 0 & prime.turns$pval < 0.05, na.rm = TRUE)
+		
 #Figure 1 caption
 	#Number of taxa
 		nrow(turn_points$dataset)
@@ -118,12 +123,12 @@
 		nrow(fitted_func)	
 
 #Ecological thresholds
-	thresh <- estimate.thresholds(turn_points, func_points)
 	thresh
-	#Bootstrapped errors around threshold estimates
-		thresh_CI
+	mean(thresh$proactive)
+	thresh_CI
+	mean(thresh$reactive)
 
-#Taxonomic categories
+#Vulnerability
 	#Number of orders
 		sum(!is.na(phylo$numbers3$propTax))
 	#Number of orders with impacted taxa
@@ -138,12 +143,17 @@
 	#Proportion taxa with turning points
 		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
 		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) 	#Mean turning point
-
-#Functional resilience
-	resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points$dataset)
-	resil_func$funcs[order(resil_func$funcs$resilience), c(17, 20,25)]	#Functional groups ordered from least to most resilient
-	sort(by(resil_func$funcs$resilience, resil_func$funcs$category, mean))	#Mean resilience per functional category
-	anova(lm(resilience ~ category, data = resil_func$funcs))
+	#Sensitivity vs susceptibility correlations
+		cor.test(as.numeric(resil_func$susc$prop_imp), as.numeric(resil_func$sens$mean.turn))
+		func <- function(x) sum(!is.na(x))/length(x)
+		prop_imp <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
+		mean.turn <- 1 - by(turn_points$dataset$turn.point, turn_points$dataset$TaxonType, FUN = mean, na.rm = TRUE) / 100	#Mean turning point
+		cor.test(prop_imp, mean.turn)
+	#Functional vulnerability
+		resil_func <- resil.func(func_groups = func.groups, func_points = func_points, turns = turn_points$dataset)
+		resil_func$funcs[order(resil_func$funcs$resilience), c(17, 20,25)]	#Functional groups ordered from least to most resilient
+		sort(by(resil_func$funcs$resilience, resil_func$funcs$category, mean))	#Mean resilience per functional category
+		lrtest(betareg(resilience ~ category, data = resil_func$funcs))
 
 #Functional composition - example taxa
 	#Plants - low photosynthetic capacity
@@ -191,7 +201,7 @@
 	#Number identified to morphospecies
 		sum(used_taxa$taxon_level == 'morphospecies', na.rm = TRUE)
 	#Number of taxa modelled
-		nrow(fitted_thresh)
+		nrow(turn_points$dataset)
 	#Number taxa represented in >1 survey
 		modelled <- taxaXdata[match(fitted_thresh$taxon, rownames(taxaXdata)),]	#Subset to just modelled taxa
 		sum(apply(X = modelled, MARGIN = 1, FUN = function(x) sum(!is.na(x))) > 1)	#Number of taxa in multiple surveys
@@ -205,6 +215,8 @@
 
 
 #Methods
+	#Number of functional groups
+		nrow(fitted_func)
 	#Number taxa analysed with GLMM
 		summary(factor(fitted_thresh$modtype))
 		summary(factor(fitted_thresh$modtype)) / (nrow(fitted_thresh) - sum(is.na(fitted_thresh$modtype)))
