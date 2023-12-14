@@ -27,6 +27,7 @@
 	taxa <- readRDS('data/taxon_table.rds')					#Full list of all taxa
 	map <- read.table('data/species_families_order_map.txt', sep = '-')	#Identified one family and example species per order that exists on TimeTree.org
 	tr <- read.tree("data/species.nwk")			#Imported phylogeny from TimeTree (www.timetree.org)
+	taxaXdata <- taxon.dataset(thresh_data)
 
 
 ##FIGURE 1: MAIN RESULTS
@@ -96,8 +97,8 @@ png('figures/fig1.png', width = 1600, height = 1600, res = 150)
 	{
 		turn_pointsC <- assign.taxon(dataset = turn_points, taxon_table = taxa)
 		thresholds <- estimate.thresholds(turn_pointsC, func_points)
-		proThresh <- thresholds$proactive[5]	#round_any(thresholds$proactive[1], 5, f = round)
-		reThresh <- thresholds$reactive[5]		#round_any(thresholds$reactive[1], 5, f = round)
+		proThresh <- thresholds$proactive[5]	
+		reThresh <- thresholds$reactive[5]	
 		
 		#Taxa
 		taxa_turn <- turn_pointsC$dataset$turn.point[!is.na(turn_pointsC$dataset$turn.point)]
@@ -116,15 +117,17 @@ png('figures/fig1.png', width = 1600, height = 1600, res = 150)
 			pch = 21, cex = 4, col = pal[1], lwd = 2, decel.col = pal[1])
 			
 		#Add threshold locations
-		arrows(proThresh, 0.02, proThresh, 0, lwd = 4, angle = 25, length = 0.1)
-		arrows(reThresh, 0.02, reThresh, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
+		#arrows(proThresh, 0.02, proThresh, 0, lwd = 4, angle = 25, length = 0.1)
+		#arrows(reThresh, 0.02, reThresh, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
+		points(proThresh, 0, pch = 17, cex = 4)
+		points(reThresh, 0, pch = 17, cex = 4)
 	
-		legend('topright', legend = c('accel.', 'proactive', 'reactive'), 
-			pch = c(21, NA, NA), pt.bg = c('white', NA, NA),
-			cex = 1.8, pt.cex = 4, lty = c(0, 1, 2), lwd = c(2,3,3), bty = 'n', 
-			x.intersp = 0.1)
+		#legend('topright', legend = c('accel.', 'proactive', 'reactive'), 
+		#	pch = c(21, NA, NA), pt.bg = c('white', NA, NA),
+		#	cex = 1.8, pt.cex = 4, lty = c(0, 1, 2), lwd = c(2,3,3), bty = 'n', 
+		#	x.intersp = 0.1)
 
-		text(x = 0, y = 0.029, labels = c('(C) Change points'), cex = 2, pos = 4)
+		text(x = 0, y = 0.028, labels = c('(C) Change\npoints'), cex = 2, pos = 4)
 		mtext('Probability density', side = 2, line = 4, cex = 2)
 	}
 
@@ -147,14 +150,34 @@ png('figures/fig1.png', width = 1600, height = 1600, res = 150)
 			pch = 21, cex = 4, lwd = 2, col = pal[1], decel.col = pal[1])
 	
 		#Add threshold locations
-		arrows(proThresh, 0.02, proThresh, 0, lwd = 4, angle = 25, length = 0.1)
-		arrows(reThresh, 0.02, reThresh, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
+		#arrows(proThresh, 0.02, proThresh, 0, lwd = 4, angle = 25, length = 0.1)
+		#arrows(reThresh, 0.02, reThresh, 0, lwd = 4, angle = 25, length = 0.1, lty = 2)
+		points(proThresh, 0, pch = 17, cex = 4)
+		points(reThresh, 0, pch = 17, cex = 4)
 	
-		text(x = 0, y = 0.029, labels = c('(D) Maximum rate points'), cex = 2, pos = 4)
+		text(x = 0, y = 0.028, labels = c('(D) Maximum\nrate points'), cex = 2, pos = 4)
 		mtext('Probability density', side = 2, line = 4, cex = 2)
 	}
 	
-	mtext('Biomass reduction (%)', 1, line = 0, outer = TRUE, cex = 2)
+	#Insets
+	{
+	par(mai = c(0, 0, 0, 0))
+	par(oma = c(0, 0, 0, 0))
+	
+	#Change point
+	par(fig = c(0.35, 0.46, 0.43, 0.49), new = TRUE)
+	y <- exp(5.44757 -0.1389627*(0:100))/(1 + exp(5.44757 -0.1389627*(0:100)))	#Logistic regression values
+	plot(y, type = 'l', lwd = 2, axes = F, col = 'grey')
+	points(30, 0.7822265, pch = 19, cex = 2)
+	
+	#Max rate point
+	par(fig = c(0.85, 0.96, 0.43, 0.49), new = TRUE)
+	y <- exp(5.44757 -0.1389627*(0:100))/(1 + exp(5.44757 -0.1389627*(0:100)))	#Logistic regression values
+	plot(y, type = 'l', lwd = 2, axes = F, col = 'grey')
+	points(39, 0.5070057, pch = 19, cex = 2)
+	}
+
+	mtext('Biomass reduction (%)', 1, line = -3.5, outer = TRUE, cex = 2)
 
 	}
 	dev.off()
@@ -287,10 +310,10 @@ png('figures/fig3.png', width = 1000, height = 1000, res = 150)
 		for(i in 1:nrow(funcs)){
 			points(x = funcs$turn.point[i], y = i, pch = funcs$pch[i], col = funcs$col[i], lty = funcs$lty[i])
 			if(!is.na(funcs$maxrate[i]) & !(funcs$maxrate[i] == 100 & funcs$turn.point[i] == 100)){
-			#	points(x = funcs$maxrate[i], y = i, pch = funcs$pch[i], col = funcs$col[i], lty = funcs$lty[i])
 				arrows(x0 = funcs$turn.point[i], y0 = i, x1 = funcs$maxrate[i], y1 = i, 
 					col = funcs$col[i], lty = funcs$lty[i],
-					angle = 20, length =0.07)
+					angle = 20, length =0.0)
+				points(x = funcs$maxrate[i], y = i, pch = 19, cex = 0.5, col = funcs$col[i], lty = funcs$lty[i])
 				}
 			text(x = -7, y = i, funcs$qualifier [i], cex = 0.6, adj = c(1, 0.5), col = funcs$col[i])
 	#		text(x = -50, y = i, funcs$category [i], cex = 0.6, adj = c(1, 0.5), col = funcs$col[i])
@@ -326,7 +349,7 @@ png('figures/fig3.png', width = 1000, height = 1000, res = 150)
 			polygon(x = c(xmin, xmin, xmax, xmax), y = c(ymin, ymax, ymax, ymin), 
 				col = alpha(new$col[i], 0.3))
 			points(x = xmin + new$sens[i]*100, i, pch = 24, cex = 0.7, bg = new$col[i])
-			points(x = xmin + new$susc[i]*100, i, pch = 25, cex = 0.7, bg = new$col[i])
+			points(x = xmin + new$susc[i]*100, i, pch = 21, cex = 1, bg = new$col[i])
 			}
 	}
 	
@@ -336,8 +359,8 @@ png('figures/fig3.png', width = 1000, height = 1000, res = 150)
 
 	pchmatch$types[pchmatch$types == 'invertebrate'] <- 'other invert.'
 
-	legend('top', legend = c(pchmatch$types, NA, 'increasing', 'decreasing', NA, 'sensitivity', 'susceptibility'), 
-		pch = c(as.numeric(pchmatch$pchtypes), NA, NA, NA, NA, 24, 25),
+	legend('top', legend = c(pchmatch$types, NA, 'increasing', 'decreasing', NA, 'probability', 'severity'), 
+		pch = c(as.numeric(pchmatch$pchtypes), NA, NA, NA, NA, 24, 21),
 		lty = c(rep(0, nrow(pchmatch)), NA, 1, 2),
 		lwd = c(rep(1, nrow(pchmatch)), NA, 2,2),
 		col = c(rep('black', length(pchmatch$types) + 6)),
@@ -418,8 +441,35 @@ png(paste('figures/figS1.png', sep = ""), width = 1000, height = 1500, res = 150
 
 
 
-##FIGURE S2 - ANALYSIS METHODS
-png('figures/figS2.png', width = 1600, height = 1600, res = 150)
+##FIGURE S2: SAMPLING EFFORT PER TAXON
+{
+	fitted_taxa <- fitted_thresh$taxon[!is.na(fitted_thresh$modtype)]	#names of taxa that were modelled
+	fitted_taxaXdata <- taxaXdata[match(fitted_taxa, rownames(taxaXdata)), ]	#subset to only taxa that were modelled
+	freqs <- rowSums(fitted_taxaXdata > 0, na.rm = TRUE)
+	
+	num_surveys <- NULL
+	for(i in 1:max(freqs)){
+		num_surveys[i] <- sum(freqs == i)
+		}
+
+png('figures/figS2.png', width = 800, height = 800, res = 150)
+{
+	par(mai = c(0.5, 0.5, 0.1, 0.1))
+	par(oma = c(2, 2.6, 0.5, 0.5))
+	barplot(cumsum(num_surveys), ylab = "", cex.axis = 1.5,
+		ylim = c(0, 1700))
+	box(lwd = 2)
+	axis(1, at = c(0, 5, 10, 15), cex.axis = 1.5)
+	mtext('Number of surveys', side = 1, line = 3, cex = 2)
+	mtext('Cumulative number of taxa', side = 2, line = 3, cex = 2)
+	}
+	dev.off()
+}		
+
+
+
+##FIGURE S3 - ANALYSIS METHODS
+png('figures/figS3.png', width = 1600, height = 1600, res = 150)
 {
 	par(mfrow = c(2,2))
 	par(mai = c(0.8, 0.7, 0.1, 0.3))
@@ -628,7 +678,6 @@ png('figures/figS2.png', width = 1600, height = 1600, res = 150)
 
 	dev.off()
 }
-
 
 
 

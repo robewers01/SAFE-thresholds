@@ -1618,8 +1618,7 @@ resil.func <- function(func_groups, func_points, turns){
 	func_set <- unique(funcs$shortname)		#Set of functions to iterate through
 	
 	#Output matrix
-	sens <- susc <- data.frame()
-	num_taxa <- NULL
+	sens <- susc <- data.frame(matrix(, nrow = 0, ncol = 2))
 	for(i in 1:length(func_set)){		#For each function type
 		#Extract target functional category
 		func_targ <- func_set[i]
@@ -1640,22 +1639,23 @@ resil.func <- function(func_groups, func_points, turns){
 				func <- function(x) sum(!is.na(x))/length(x)
 				prop_imp <- by(sub_turns$turn.point, factor(sub_turns$TaxonType), FUN = func)	#Proportion taxa with turning points
 				susc_boot$susc$prop_imp <- prop_imp
+				susc_boot$susc$num.taxa <- nrow(sub_turns)
 				#Calculate sensitivity
 				gen_turns <- sub_turns$turn.point
 				gen_turns[is.na(gen_turns)] <- 100
 				mean.turn <- 1 - by(gen_turns, sub_turns$TaxonType, FUN = mean, na.rm = TRUE) / 100	#Mean turning point
 				susc_boot$sens$mean.turn <- mean.turn
+				susc_boot$sens$num.taxa <- nrow(sub_turns)
 
 				sens <- rbind(sens, susc_boot$sens)
 				susc <- rbind(susc, susc_boot$susc)
-				num_taxa <- c(num_taxa, nrow(sub_turns))
 				
 				rm(susc_boot)
 				}
 			}
 		}
 	#Only retain functional types with >= 5 taxa
-	keeps <- which(num_taxa >= 5)
+	keeps <- which(sens$num.taxa >= 5)
 	sens <- sens[keeps, ]
 	susc <- susc[keeps, ]
 	
@@ -1668,7 +1668,7 @@ resil.func <- function(func_groups, func_points, turns){
 	
 	funcs_keep <- funcs[align, ]
 	funcs_keep$resilience <-  (susc$prop_imp * sens$mean.turn) 
-
+	
 	out <- list(sens = sens, susc = susc, funcs = funcs_keep)
 	return(out)
 	}

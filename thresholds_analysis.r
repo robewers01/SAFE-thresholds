@@ -1,6 +1,5 @@
 
 #Import functions
-	setwd("C:/Users/robew/OneDrive - Imperial College London/work/papers/in prep/ewers et al - SAFE meta-analysis/SAFE-thresholds/")
 	setwd("C:/Users/rewers/OneDrive - Imperial College London/work/papers/in prep/ewers et al - SAFE meta-analysis/SAFE-thresholds/")
 	source("thresholds_functions.r")
 
@@ -46,7 +45,7 @@
 	func_points <- readRDS('results/func_points.rds')
 	thresh_CI <- readRDS('results/threshold_CI.rds')
 
-#Calculate summaries and derived data
+#Introduction
 	taxa_cats <- assign.taxon(dataset = fitted_thresh[!is.na(fitted_thresh$modtype), ], taxon_table = taxa)
 	turn_points <- assign.taxon(dataset = turn_points, taxon_table = taxa)
 	phylo <- arrange.phylo(timetree = tr, raw_data = thresh.data, taxa_safe = taxa,
@@ -77,8 +76,10 @@
 		sum(!is.na(fitted_thresh$modtype))	#Taxa
 		nrow(fitted_func)					#Functional groups
 	#Survey information
-		sum(rowSums(!is.na(taxaXdata)) > 1)				#Number of taxa in >1 survey
-		sum(rowSums(!is.na(taxaXdata)) > 1) / nrow(taxaXdata)	#As a proportion
+		fitted_taxa <- fitted_thresh$taxon[!is.na(fitted_thresh$modtype)]	#names of taxa that were modelled
+		fitted_taxaXdata <- taxaXdata[match(fitted_taxa, rownames(taxaXdata)), ]	#subset to only taxa that were modelled
+		sum(rowSums(!is.na(fitted_taxaXdata)) > 1)				#Number of modelled taxa in >1 survey
+		sum(rowSums(!is.na(fitted_taxaXdata)) > 1) / nrow(fitted_taxaXdata)	#As a proportion
 		visits <- repeat.visits(thresh.data)
 		sum(visits$mean.visits > 1)/nrow(visits)	#Number surveys with >1 visit, as proportion
 	#Higher order taxa
@@ -141,12 +142,11 @@
 		sum(fs > 0)				#Number of impacted functional groups
 		sum(fs > 0)/length(fs)	#As a proportion
 	#Proportion taxa with turning points
-		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
+		(prop_imp <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func))	#Proportion taxa with turning points
 		by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = mean, na.rm = TRUE) 	#Mean turning point
 	#Sensitivity vs susceptibility correlations
 		cor.test(as.numeric(resil_func$susc$prop_imp), as.numeric(resil_func$sens$mean.turn))
 		func <- function(x) sum(!is.na(x))/length(x)
-		prop_imp <- by(turn_points$dataset$turn.point, factor(turn_points$dataset$TaxonType), FUN = func)	#Proportion taxa with turning points
 		mean.turn <- 1 - by(turn_points$dataset$turn.point, turn_points$dataset$TaxonType, FUN = mean, na.rm = TRUE) / 100	#Mean turning point
 		cor.test(prop_imp, mean.turn)
 	#Functional vulnerability
@@ -154,6 +154,7 @@
 		resil_func$funcs[order(resil_func$funcs$resilience), c(17, 20,25)]	#Functional groups ordered from least to most resilient
 		sort(by(resil_func$funcs$resilience, resil_func$funcs$category, mean))	#Mean resilience per functional category
 		lrtest(betareg(resilience ~ category, data = resil_func$funcs))
+
 
 #Functional composition - example taxa
 	#Plants - low photosynthetic capacity
@@ -203,8 +204,7 @@
 	#Number of taxa modelled
 		nrow(turn_points$dataset)
 	#Number taxa represented in >1 survey
-		modelled <- taxaXdata[match(fitted_thresh$taxon, rownames(taxaXdata)),]	#Subset to just modelled taxa
-		sum(apply(X = modelled, MARGIN = 1, FUN = function(x) sum(!is.na(x))) > 1)	#Number of taxa in multiple surveys
+		sum(rowSums(!is.na(fitted_taxaXdata)) > 1)				#Number of modelled taxa in >1 survey
 
 
 #Fig S1 caption
@@ -217,6 +217,21 @@
 #Methods
 	#Number of functional groups
 		nrow(fitted_func)
+	#Check for taxonomic bias
+		#Change points
+		tps_beta <- turn_points$dataset$turn.point/100
+			tps_beta[tps_beta == 1] <- 0.99
+			tps_beta[tps_beta == 0] <- 0.01
+		beta_tp <- betareg(tps_beta ~ turn_points$dataset$TaxonType)
+		null_tp <- betareg(tps_beta ~ 1)
+		lrtest(beta_tp, null_tp)
+		#Maximum rate points
+		mr_beta <- turn_points$dataset$maxrate/100
+			mr_beta[mr_beta == 1] <- 0.99
+			mr_beta[mr_beta == 0] <- 0.01
+		beta_mr <- betareg(mr_beta ~ turn_points$dataset$TaxonType)
+		null_mr <- betareg(mr_beta ~ 1, na.action = "na.omit")
+		lrtest(beta_mr, null_mr)
 	#Number taxa analysed with GLMM
 		summary(factor(fitted_thresh$modtype))
 		summary(factor(fitted_thresh$modtype)) / (nrow(fitted_thresh) - sum(is.na(fitted_thresh$modtype)))
@@ -226,9 +241,69 @@
 	
 #Table S1
 	summarise.data(thresh.data)
-	#write.csv(summarise.data(thresh.data), 'figures/tableS1.csv')
 	
 #Table S2
 	sort.funcs(func_groups = func.groups)
-	#write.csv(sort.funcs(func_groups = func.groups), 'figures/tableS2.csv')
 	
+
+
+
+
+
+
+
+
+
+
+
+
+#Sampling effort among years
+years <- NULL
+for(i in 1:length(thresh.data)){
+	years[i] <- thresh.data[[i]]$sample.year
+	}
+surv_year <- NULL
+for(j in min(years):max(years)){
+	surv_year[j] <- sum(years == j)
+	}
+	surv_year <- surv_year[!is.na(surv_year)]
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
